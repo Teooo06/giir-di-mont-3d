@@ -685,6 +685,7 @@ function frame() {
 
   programCamera.position.copy(camera.position);
   programCamera.quaternion.copy(camera.quaternion);
+  programCamera.updateMatrixWorld();
 
   renderer.render(scene, camera);
   updateLabels();
@@ -694,8 +695,37 @@ function frame() {
 
 frame();
 
+// Riquadro NDI 16:9 — mostra esattamente il crop del Program
+function updateNdiFrameBox() {
+  const el = document.querySelector('#ndi-frame');
+  if (!el) return;
+  const vw = innerWidth, vh = innerHeight;
+  const targetAspect = 16 / 9;
+  const viewAspect = vw / vh;
+  let w, h;
+  if (viewAspect > targetAspect) {
+    h = vh;
+    w = vh * targetAspect;
+  } else {
+    w = vw;
+    h = vw / targetAspect;
+  }
+  // Leggero inset per non coprire i bordi HUD (8px)
+  const inset = 0;
+  el.style.width = `${Math.max(0, w - inset * 2)}px`;
+  el.style.height = `${Math.max(0, h - inset * 2)}px`;
+}
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  updateNdiFrameBox();
+});
+updateNdiFrameBox();
+// Toggle riquadro con tasto N
+addEventListener('keydown', (e) => {
+  if ((e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
+  if (e.key.toLowerCase() === 'n') {
+    document.querySelector('#ndi-frame')?.classList.toggle('hidden');
+  }
 });
