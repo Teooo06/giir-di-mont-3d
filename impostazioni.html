@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Giir di Mont — Pannello Impostazioni & Controllo Gara</title>
+    <link rel="stylesheet" href="/src/impostazioni.css" />
+  </head>
+  <body>
+    <div class="settings-app">
+      <!-- Header -->
+      <header class="app-header">
+        <div class="brand">
+          <span class="eyebrow">GIIR DI MONT · 32 KM</span>
+          <h1>Pannello Controllo Gara & Impostazioni</h1>
+        </div>
+        <div class="header-actions">
+          <a href="/" class="btn-primary" target="_blank">🎬 Apri Visualizzazione 3D (Live)</a>
+        </div>
+      </header>
+
+      <div class="dashboard-grid">
+        <!-- Colonna Sinistra: Gestione Gara & Atleti -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <span class="badge">TEMPI & DISTACCHI</span>
+              <h2>Tabella Passaggi Checkpoint</h2>
+              <p class="subtitle">I tempi di riferimento dei top runner sul Giir di Mont 32 km (+3.800m D+) sono calcolati su un tempo finale record di <strong>3:15:00</strong>.</p>
+            </div>
+            <button id="btn-add-athlete" class="btn-secondary">+ Aggiungi Atleta</button>
+          </div>
+
+          <!-- Selettore Atleta -->
+          <div class="athlete-tabs" id="athlete-tabs"></div>
+
+          <!-- Form Dati Atleta Selezionato -->
+          <div class="athlete-edit-box">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Numero Pettorale</label>
+                <input type="text" id="ath-bib" placeholder="es. 1" />
+              </div>
+              <div class="form-group flex-2">
+                <label>Nome e Cognome Atleta</label>
+                <input type="text" id="ath-name" placeholder="es. Petro Mamu" />
+              </div>
+              <div class="form-group">
+                <label>Nazione (Codice)</label>
+                <input type="text" id="ath-country" placeholder="es. ITA / ERI" maxlength="3" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group flex-2">
+                <label>Team / Sponsor</label>
+                <input type="text" id="ath-team" placeholder="es. Scarpa Team" />
+              </div>
+              <div class="form-group">
+                <label>Colore Marcatore 3D</label>
+                <input type="color" id="ath-color" value="#dff654" />
+              </div>
+              <div class="form-group">
+                <label>Stato</label>
+                <select id="ath-status">
+                  <option value="running">In Gara</option>
+                  <option value="finished">Arrivato</option>
+                  <option value="dnf">Ritirato (DNF)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabella Tempi ai Checkpoint Ufficiali -->
+          <div class="table-container">
+            <table class="splits-table">
+              <thead>
+                <tr>
+                  <th>Km</th>
+                  <th>Punto di Controllo</th>
+                  <th>Quota</th>
+                  <th>Tempo Riferimento (3h15)</th>
+                  <th>Tempo Registrato Atleta</th>
+                  <th>Azione</th>
+                </tr>
+              </thead>
+              <tbody id="splits-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="card-footer">
+            <button id="btn-delete-athlete" class="btn-danger">Elimina Atleta</button>
+            <button id="btn-reset-data" class="btn-outline">Ripristina Valori Predefiniti</button>
+          </div>
+        </section>
+
+        <!-- Colonna Destra: Personalizzazione Grafica & Broadcast -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <span class="badge">GRAFICA BROADCAST</span>
+              <h2>Stile, Font & Colori</h2>
+              <p class="subtitle">Personalizza i colori on-air, i caratteri tipografici e l'aspetto del terreno 3D per la diretta.</p>
+            </div>
+          </div>
+
+          <div class="settings-form">
+            <div class="form-group">
+              <label>Stile Visivo del Terreno 3D</label>
+              <div class="radio-cards" id="terrain-style-group">
+                <label class="radio-card">
+                  <input type="radio" name="terrainStyle" value="satellite" checked />
+                  <div class="card-content">
+                    <strong>🛰️ Satellitare HD</strong>
+                    <small>Mappa aerea reale ortofoto</small>
+                  </div>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="terrainStyle" value="stylized" />
+                  <div class="card-content">
+                    <strong>🎮 3D Stilizzato</strong>
+                    <small>Rilievo altimetrico montano</small>
+                  </div>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="terrainStyle" value="dark" />
+                  <div class="card-content">
+                    <strong>🌑 Dark Minimal</strong>
+                    <small>Look notturno per grafiche neon</small>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Colore Principale Brand (Accent Color)</label>
+              <div class="color-picker-row">
+                <input type="color" id="theme-color-picker" value="#dff654" />
+                <div class="preset-colors">
+                  <button type="button" class="preset-btn" data-color="#dff654" style="background:#dff654;" title="Giallo Giir"></button>
+                  <button type="button" class="preset-btn" data-color="#00f0ff" style="background:#00f0ff;" title="Ciano Skyrunning"></button>
+                  <button type="button" class="preset-btn" data-color="#ff9500" style="background:#ff9500;" title="Arancio"></button>
+                  <button type="button" class="preset-btn" data-color="#ff3b30" style="background:#ff3b30;" title="Rosso Gara"></button>
+                  <button type="button" class="preset-btn" data-color="#34c759" style="background:#34c759;" title="Verde Neon"></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Font Tipografico Titoli & Grafiche</label>
+              <select id="font-family-select" class="form-control">
+                <option value="Barlow Condensed">Barlow Condensed (Sport Broadcast TV)</option>
+                <option value="DM Sans">DM Sans (Elegante / Moderno)</option>
+                <option value="Montserrat">Montserrat (Geometrico)</option>
+                <option value="Oswald">Oswald (Bold / Impatto)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Esagerazione Rilievo 3D Montagne (<span id="exag-label">1.25x</span>)</label>
+              <input type="range" id="exag-input" min="1.0" max="1.8" step="0.05" value="1.25" class="form-slider" />
+              <small class="help-text">Aumenta l'impatto visivo delle vette (Pizzo Alto, Legnone, Bocchetta di Larec).</small>
+            </div>
+
+            <div class="form-group">
+              <label>Nome Sorgente NDI per la Regia</label>
+              <input type="text" id="ndi-source-input" value="GIIR-3D-PROGRAM" class="form-control" />
+            </div>
+
+            <div class="form-group checkbox-group">
+              <label>
+                <input type="checkbox" id="chk-prof-overlay" checked />
+                Mostra Profilo Altimetrico Dinamico in onda
+              </label>
+            </div>
+
+            <div class="banner-box">
+              <strong>🔗 Classifiche Ufficiali</strong>
+              <p>Consulta i passaggi reali dei concorrenti su <a href="https://www.giirdimont.it/it/classifiche/" target="_blank">giirdimont.it/classifiche</a> per aggiornare i tempi in tempo reale durante la gara.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <script type="module" src="/src/impostazioni.js"></script>
+  </body>
+</html>

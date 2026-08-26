@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Giir di Mont — 3D Broadcast & Race Control</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="world"></canvas>
+      
+      <!-- Top Left Brand -->
+      <section class="brand hud">
+        <span class="eyebrow">GIIR DI MONT · 32 KM</span>
+        <strong>3D Live Visualizer</strong>
+      </section>
+
+      <!-- Main Navigation Tabs -->
+      <nav class="nav-tabs hud">
+        <button class="nav-tab active" data-tab="tab-scenes">🎬 Regia Scene</button>
+        <button class="nav-tab" data-tab="tab-race">⏱️ Gara & Passaggi</button>
+        <button class="nav-tab" data-tab="tab-settings">⚙️ Personalizza Stile</button>
+      </nav>
+
+      <!-- NDI Status Bar -->
+      <section id="ndi-bar" class="ndi-bar hud">
+        <div id="ndi-badge" class="ndi-badge live">
+          <i class="dot"></i>
+          <span>NDI: <strong id="ndi-name">GIIR-3D-PROGRAM</strong></span>
+        </div>
+        <div class="ndi-info">
+          <span id="ndi-conns" title="Ricevitori NDI connessi in rete">👥 0 connessioni</span>
+          <span id="ndi-fps" title="Frame rate NDI trasmesso">⏱️ 50 FPS</span>
+          <span class="ndi-res">1080p50</span>
+        </div>
+        <button id="ndi-toggle" class="ndi-action-btn">Disattiva NDI</button>
+      </section>
+
+      <!-- TAB 1: SCENE & REGIA -->
+      <aside id="tab-scenes" class="side-panel hud tab-content active">
+        <div class="panel-header">
+          <span class="eyebrow">INQUADRATURE REGIA</span>
+          <strong>Scene Rapide</strong>
+        </div>
+        <button data-scene="overview" class="scene-btn active"><kbd>1</kbd> Panoramica 3D Valle</button>
+        <button data-scene="runner" class="scene-btn"><kbd>2</kbd> Insegui Leader (Drone)</button>
+        <button data-scene="checkpoint" class="scene-btn"><kbd>3</kbd> Bocchetta di Larec (2060m)</button>
+        <button data-scene="pizzo" class="scene-btn"><kbd>4</kbd> Pizzo Alto (Vetta)</button>
+        <button data-scene="topdown" class="scene-btn"><kbd>5</kbd> Vista Satellitare Zenith</button>
+
+        <div class="panel-divider"></div>
+        <div class="panel-header">
+          <span class="eyebrow">TRACCIATO 3D</span>
+          <strong id="track-status">Giir di Mont 32 km</strong>
+        </div>
+        <label class="import-btn">
+          <input id="gpx-input" type="file" accept=".gpx,application/gpx+xml,application/xml" />
+          📂 Sostituisci File GPX
+        </label>
+      </aside>
+
+      <!-- TAB 2: GARA & PASSAGGI INTERMEDI -->
+      <aside id="tab-race" class="side-panel hud tab-content">
+        <div class="panel-header">
+          <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+            <div>
+              <span class="eyebrow">MONITORAGGIO GARA</span>
+              <strong>Passaggi & Atleti</strong>
+            </div>
+            <button id="btn-add-athlete" class="mini-btn" title="Aggiungi atleta">+ Atleta</button>
+          </div>
+        </div>
+
+        <!-- Elenco Atleti -->
+        <div id="athletes-list" class="athletes-list"></div>
+
+        <div class="panel-divider"></div>
+
+        <!-- Inserimento Passaggi Checkpoint per atleta selezionato -->
+        <div class="splits-editor">
+          <span class="eyebrow">TEMPI DI PASSAGGIO · <span id="splits-athlete-name">--</span></span>
+          <div id="splits-table" class="splits-table"></div>
+        </div>
+
+        <div class="panel-actions">
+          <button id="btn-reset-race" class="text-btn">Ripristina Dati Gara</button>
+        </div>
+      </aside>
+
+      <!-- TAB 3: IMPOSTAZIONI STILE & GRAFICA -->
+      <aside id="tab-settings" class="side-panel hud tab-content">
+        <div class="panel-header">
+          <span class="eyebrow">PERSONALIZZAZIONE</span>
+          <strong>Grafica & Aspetto</strong>
+        </div>
+
+        <div class="setting-group">
+          <label>Stile Mappa e Terreno</label>
+          <div class="style-options" id="terrain-style-selector">
+            <button data-val="satellite" class="choice-btn active">🛰️ Satellitare HD</button>
+            <button data-val="stylized" class="choice-btn">🎮 3D Stilizzato</button>
+            <button data-val="dark" class="choice-btn">🌑 Dark Minimal</button>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label>Colore Principale Brand</label>
+          <div class="color-palette" id="color-palette">
+            <div class="color-dot active" data-color="#dff654" style="background:#dff654;" title="Giallo Giir"></div>
+            <div class="color-dot" data-color="#00f0ff" style="background:#00f0ff;" title="Ciano Skyrunning"></div>
+            <div class="color-dot" data-color="#ff9500" style="background:#ff9500;" title="Arancio Fuoco"></div>
+            <div class="color-dot" data-color="#ff3b30" style="background:#ff3b30;" title="Rosso Gara"></div>
+            <div class="color-dot" data-color="#34c759" style="background:#34c759;" title="Verde Neon"></div>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label>Font Tipografico</label>
+          <select id="font-selector" class="custom-select">
+            <option value="Barlow Condensed">Barlow Condensed (Broadcast)</option>
+            <option value="DM Sans">DM Sans (Moderno)</option>
+            <option value="Montserrat">Montserrat (Geometrico)</option>
+            <option value="Oswald">Oswald (Bold Sport)</option>
+          </select>
+        </div>
+
+        <div class="setting-group">
+          <label>Esagerazione Rilievo 3D: <span id="exaggeration-val">1.25x</span></label>
+          <input id="exaggeration-slider" type="range" min="1.0" max="1.8" step="0.05" value="1.25" class="custom-slider" />
+        </div>
+
+        <div class="setting-group">
+          <label class="checkbox-label">
+            <input id="chk-profile" type="checkbox" checked />
+            Mostra Profilo Altimetrico in onda
+          </label>
+        </div>
+
+        <div class="panel-divider"></div>
+        <div class="panel-actions">
+          <button id="btn-save-settings" class="action-btn">Salva Impostazioni</button>
+        </div>
+      </aside>
+
+      <!-- Bottom Elevation Profile Bar -->
+      <section id="elevation-profile-container" class="elevation-hud hud"></section>
+
+      <!-- Bottom Operator Status Card -->
+      <section class="operator hud">
+        <div class="operator-title">
+          <div>
+            <span class="eyebrow">TELECAMERA DRONE</span>
+            <span id="mode">ORBITA LIBERA</span>
+          </div>
+          <span id="tally-indicator" class="tally-tag">NDI TRASMETTE</span>
+        </div>
+        <div class="rider-card">
+          <div id="op-bib" class="bib">241</div>
+          <div>
+            <strong id="op-name">Morven Goodrum</strong>
+            <small id="op-gap">LEADER · Scarpa Team</small>
+          </div>
+          <b id="progress">0.0 km</b>
+        </div>
+        <div class="live-scrubber">
+          <input id="athlete-km-slider" type="range" min="0" max="32" step="0.1" value="0" />
+        </div>
+        <p>
+          <kbd>Trascina</kbd> Ruota · <kbd>Rotella</kbd> Zoom · <kbd>Spazio</kbd> Play/Pausa · <kbd>C</kbd> Vista Pulita
+        </p>
+      </section>
+
+      <div id="clean-notice" class="clean-notice">
+        MODALITÀ PULITA · Flusso NDI 1080p attivo come <strong>GIIR-3D-PROGRAM</strong>
+      </div>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
