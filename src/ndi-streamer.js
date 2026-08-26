@@ -137,8 +137,9 @@ export class NdiStreamer {
 
     this.lastFrameTime = now;
 
-    // Renderizza su render target dedicato 1080p
+    // Renderizza su render target dedicato 1080p — viewport forzata 1920x1080
     renderer.setRenderTarget(this.renderTarget);
+    renderer.setViewport(0, 0, this.width, this.height);
     renderer.render(scene, camera);
 
     // Leggi i pixel dal framebuffer
