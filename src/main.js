@@ -683,9 +683,10 @@ function frame() {
 
   controls.update();
 
-  programCamera.position.copy(camera.position);
-  programCamera.quaternion.copy(camera.quaternion);
-  programCamera.updateMatrixWorld();
+  // Sincronizza Program camera al 100% con la camera browser, poi forza 16:9
+  programCamera.copy(camera);
+  programCamera.aspect = 16 / 9;
+  programCamera.updateProjectionMatrix();
 
   renderer.render(scene, camera);
   updateLabels();
