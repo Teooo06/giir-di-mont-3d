@@ -31,7 +31,7 @@ export class NdiStreamer {
     this.lastFrameTime = 0;
     this.frameInterval = 1000 / this.targetFps;
 
-    // Render target dedicato 1080p
+    // Render target dedicato 1080p — con MSAA e colorSpace corretto
     this.renderTarget = new THREE.WebGLRenderTarget(this.width, this.height, {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
@@ -41,6 +41,9 @@ export class NdiStreamer {
       depthBuffer: true,
       stencilBuffer: false
     });
+    // MSAA 4x su WebGL2 (fa la differenza sgranato vs browser)
+    if ('samples' in this.renderTarget) this.renderTarget.samples = 4;
+    this.renderTarget.texture.colorSpace = THREE.SRGBColorSpace;
 
     this.initWebSocket();
   }
