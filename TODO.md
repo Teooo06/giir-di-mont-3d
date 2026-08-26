@@ -4,11 +4,10 @@
 
 ## Ordine di lavoro
 
-### 1. [NDI] Nomi checkpoint in NDI (punto 3 pendente)
-**Problema:** label checkpoint sono `div.label` HTML (`src/main.js:232` + `src/style.css:639`) posizionate via `project(camera)` (`src/main.js:633`). `gl.readPixels` (`src/ndi-streamer.js:147`) legge solo WebGL, quindi NDI non li vede.
-**Fix previsto:** `THREE.Sprite` con `CanvasTexture` nel `checkpointGroup` (`src/main.js:173`) — visibili sia browser che NDI senza compositing 2D (che aveva rotto i colori). Gestire `isStart`/`isFinish` e occlusione.
-**File:** `src/main.js`, `src/ndi-streamer.js` (nessun overlay 2D)
-**Test:** screenshot browser vs NDI Studio Monitor affiancati
+### 1. [NDI] Nomi checkpoint in NDI ✅ FATTO (07d54f0)
+**Problema:** label checkpoint erano `div.label` HTML (`src/main.js:232` + `src/style.css:639`) posizionate via `project(camera)` (`src/main.js:633`). `gl.readPixels` (`src/ndi-streamer.js:147`) legge solo WebGL, quindi NDI non li vedeva.
+**Fix fatto:** `createCheckpointLabelSprite()` CanvasTexture 512x160 + `THREE.Sprite` su layer 1 (`src/main.js:222`), `camera.layers 0` / `programCamera 0+1` (`src/main.js:27`), HTML resta per browser, sprite per NDI. `clearCheckpoints`/`updateLabels` gestiscono entrambi.
+**Test:** verificare in NDI Studio Monitor che i cartelli checkpoint appaiano centrati sopra le sfere
 
 ### 2. [3D] Mondo troppo tagliato / da ingrandire
 **Problema:** viewport appare croppata ai bordi, si perde parte del massiccio.
