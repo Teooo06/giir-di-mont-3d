@@ -84,9 +84,6 @@ const settingsManager = new SettingsManager({
   }
 });
 
-// Applica impostazioni grafiche iniziali
-applyGraphicsSettings(settingsManager.settings);
-
 const terrainManager = new TerrainManager({
   scene,
   style: settingsManager.settings.terrainStyle,
@@ -113,6 +110,9 @@ const ndiStreamer = new NdiStreamer({
   msaa: settingsManager.settings.ndiMsaa,
   onStatusChange: updateNdiHud
 });
+
+// Applica impostazioni grafiche iniziali (dopo creazione ndiStreamer)
+applyGraphicsSettings(settingsManager.settings);
 
 // Canale di sincronizzazione istantanea con /impostazioni
 try {
