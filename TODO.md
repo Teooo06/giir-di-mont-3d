@@ -29,7 +29,12 @@
 **File:** nuovo `src/models/` + loader, aggiungere a `generateAlpineForest` o nuovo `generateLandmarks()`
 **Test:** impatto FPS < 2ms, LOD se necessario
 
-### 5. [Perf] Ottimizzazione per 50fps (ora ~17fps visto in screenshot)
+### 5. [UX] Zoom: rimpicciolisci elementi 3D quando si ingrandisce (nuovo punto)
+**Richiesta:** quando si zooma, palline checkpoint, simboli atleti, alberi e tracciato devono rimpicciolirsi (partenza ok, da vicino più piccoli)
+**Fix previsto:** scala inversamente proporzionale a `camera.position.distanceTo(controls.target)` in `frame()` (`src/main.js:753`) — `scale = clamp(dist/800, 0.45, 1.0)` su marker/sprite/track/trees
+**File:** `src/main.js`
+
+### 6. [Perf] Ottimizzazione per 50fps (ora ~17fps visto in screenshot)
 **Stato:** Mac non a pieno carico, NDI a 17fps invece di 50 (`src/ndi-streamer.js:50` `targetFps 50`, `server/ndi-service.js:9` `DEFAULT_FPS 50`)
 **Ipotesi:** 
 - Doppio renderer (browser + NDI dedicato `src/ndi-streamer.js:34`) = doppio `render` per frame

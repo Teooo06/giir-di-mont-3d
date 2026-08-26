@@ -261,10 +261,12 @@ function createCheckpointLabelSprite(name, km, themeColor) {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: true });
   const sprite = new THREE.Sprite(mat);
-  sprite.layers.set(1); // solo NDI
-  sprite.scale.set(52, 16.25, 1); // 512:160 = 3.2:1, world units
+  // DEBUG: visibile sia browser che NDI per test — poi rimettere solo NDI
+  sprite.layers.set(0);
+  sprite.layers.enable(1);
+  sprite.scale.set(48, 15, 1); // 512:160 = 3.2:1, world units
   return sprite;
 }
 
@@ -751,6 +753,20 @@ function frame() {
   }
 
   controls.update();
+
+  // Scala elementi 3D inversamente allo zoom (più vicino = più piccoli)
+  const camDist = camera.position.distanceTo(controls.target);
+  const zoomScale = THREE.MathUtils.clamp(camDist / 750, 0.42, 1.0);
+  // Applica a checkpoint marker/sprite e atleti (alberi e tracciato scalati leggermente)
+  labels.forEach(({ marker, sprite }) => {
+    if (marker) marker.scale.setScalar(zoomScale);
+    if (sprite) sprite.scale.set(48 * zoomScale, 15 * zoomScale, 1);
+  });
+  athleteMeshes.forEach(({ sprite }) => {
+    if (sprite) sprite.scale.set(28 * zoomScale, 28 * zoomScale, 1);
+  });
+  if (routeLine) routeLine.scale.setScalar(THREE.MathUtils.clamp(zoomScale * 1.15, 0.55, 1.0));
+  if (treesMesh) treesMesh.scale.setScalar(THREE.MathUtils.clamp(zoomScale * 1.05, 0.6, 1.0));
 
   // Sincronizza Program camera al 100% con la camera browser, poi forza 16:9
   programCamera.copy(camera);
