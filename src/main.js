@@ -263,9 +263,7 @@ function createCheckpointLabelSprite(name, km, themeColor) {
   tex.magFilter = THREE.LinearFilter;
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: true });
   const sprite = new THREE.Sprite(mat);
-  // DEBUG: visibile sia browser che NDI per test — poi rimettere solo NDI
-  sprite.layers.set(0);
-  sprite.layers.enable(1);
+  sprite.layers.set(1); // solo NDI (browser usa HTML .label)
   sprite.scale.set(48, 15, 1); // 512:160 = 3.2:1, world units
   return sprite;
 }
@@ -754,10 +752,9 @@ function frame() {
 
   controls.update();
 
-  // Scala elementi 3D inversamente allo zoom (più vicino = più piccoli)
+  // Scala elementi 3D inversamente allo zoom (più vicino = più piccoli) — solo scala locale, mai posizione
   const camDist = camera.position.distanceTo(controls.target);
-  const zoomScale = THREE.MathUtils.clamp(camDist / 750, 0.42, 1.0);
-  // Applica a checkpoint marker/sprite e atleti (alberi e tracciato scalati leggermente)
+  const zoomScale = THREE.MathUtils.clamp(camDist / 750, 0.45, 1.0);
   labels.forEach(({ marker, sprite }) => {
     if (marker) marker.scale.setScalar(zoomScale);
     if (sprite) sprite.scale.set(48 * zoomScale, 15 * zoomScale, 1);
@@ -765,8 +762,8 @@ function frame() {
   athleteMeshes.forEach(({ sprite }) => {
     if (sprite) sprite.scale.set(28 * zoomScale, 28 * zoomScale, 1);
   });
-  if (routeLine) routeLine.scale.setScalar(THREE.MathUtils.clamp(zoomScale * 1.15, 0.55, 1.0));
-  if (treesMesh) treesMesh.scale.setScalar(THREE.MathUtils.clamp(zoomScale * 1.05, 0.6, 1.0));
+  // NON scalare routeLine e treesMesh come mesh intera (sposterebbe la geometria sotto la montagna)
+  // Per tracciato e alberi lo scaling va fatto su geometria/instanza, per ora lasciato a 1 per stabilità
 
   // Sincronizza Program camera al 100% con la camera browser, poi forza 16:9
   programCamera.copy(camera);
