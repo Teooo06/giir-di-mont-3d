@@ -215,6 +215,127 @@ function initSettingsUI() {
       syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
     });
   }
+
+  // Graphics Preset
+  initGraphicsSettingsUI();
+}
+
+function initGraphicsSettingsUI() {
+  const s = settingsManager.settings;
+
+  // Preset radio
+  const presetRadio = document.querySelector(`input[name="graphicsPreset"][value="${s.graphicsPreset}"]`);
+  if (presetRadio) presetRadio.checked = true;
+
+  document.querySelectorAll('input[name="graphicsPreset"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const preset = e.target.value;
+      settingsManager.update({ graphicsPreset: preset });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+      toggleCustomSettings(preset === 'custom');
+      updateCustomInputsFromSettings();
+    });
+  });
+
+  // Custom settings visibility
+  function toggleCustomSettings(show) {
+    const customSection = document.querySelector('#custom-graphics-settings');
+    if (customSection) {
+      customSection.style.display = show ? 'block' : 'none';
+    }
+  }
+  toggleCustomSettings(s.graphicsPreset === 'custom');
+
+  // Custom inputs
+  const shadowRes = document.querySelector('#shadow-resolution');
+  const shadowLabel = document.querySelector('#shadow-label');
+  if (shadowRes) {
+    shadowRes.value = s.shadowResolution;
+    if (shadowLabel) shadowLabel.textContent = s.shadowResolution;
+    shadowRes.addEventListener('input', (e) => {
+      const v = parseInt(e.target.value);
+      if (shadowLabel) shadowLabel.textContent = v;
+      settingsManager.update({ shadowResolution: v, graphicsPreset: 'custom' });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+
+  const treesCount = document.querySelector('#trees-count');
+  const treesLabel = document.querySelector('#trees-label');
+  if (treesCount) {
+    treesCount.value = s.treesCount;
+    if (treesLabel) treesLabel.textContent = s.treesCount;
+    treesCount.addEventListener('input', (e) => {
+      const v = parseInt(e.target.value);
+      if (treesLabel) treesLabel.textContent = v;
+      settingsManager.update({ treesCount: v, graphicsPreset: 'custom' });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+
+  const tubeSegs = document.querySelector('#tube-segments');
+  const tubeLabel = document.querySelector('#tube-label');
+  if (tubeSegs) {
+    tubeSegs.value = s.tubeSegments;
+    if (tubeLabel) tubeLabel.textContent = s.tubeSegments;
+    tubeSegs.addEventListener('input', (e) => {
+      const v = parseInt(e.target.value);
+      if (tubeLabel) tubeLabel.textContent = v;
+      settingsManager.update({ tubeSegments: v, graphicsPreset: 'custom' });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+
+  const ndiMsaa = document.querySelector('#ndi-msaa');
+  if (ndiMsaa) {
+    ndiMsaa.value = s.ndiMsaa;
+    ndiMsaa.addEventListener('change', (e) => {
+      settingsManager.update({ ndiMsaa: parseInt(e.target.value), graphicsPreset: 'custom' });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+
+  const preserveBuffer = document.querySelector('#chk-preserve-buffer');
+  if (preserveBuffer) {
+    preserveBuffer.checked = s.preserveDrawingBuffer;
+    preserveBuffer.addEventListener('change', (e) => {
+      settingsManager.update({ preserveDrawingBuffer: e.target.checked, graphicsPreset: 'custom' });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+
+  const shadowsEnabled = document.querySelector('#chk-shadows-enabled');
+  if (shadowsEnabled) {
+    shadowsEnabled.checked = s.shadowsEnabled;
+    shadowsEnabled.addEventListener('change', (e) => {
+      settingsManager.update({ shadowsEnabled: e.target.checked, graphicsPreset: 'custom' });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+
+  // NDI FPS
+  const ndiFpsInput = document.querySelector('#ndi-fps-input');
+  const ndiFpsLabel = document.querySelector('#ndi-fps-label');
+  if (ndiFpsInput) {
+    ndiFpsInput.value = s.ndiFps;
+    if (ndiFpsLabel) ndiFpsLabel.textContent = s.ndiFps;
+    ndiFpsInput.addEventListener('input', (e) => {
+      const v = parseInt(e.target.value);
+      if (ndiFpsLabel) ndiFpsLabel.textContent = v;
+      settingsManager.update({ ndiFps: v });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+
+  function updateCustomInputsFromSettings() {
+    const cur = settingsManager.settings;
+    if (shadowRes) { shadowRes.value = cur.shadowResolution; if (shadowLabel) shadowLabel.textContent = cur.shadowResolution; }
+    if (treesCount) { treesCount.value = cur.treesCount; if (treesLabel) treesLabel.textContent = cur.treesCount; }
+    if (tubeSegs) { tubeSegs.value = cur.tubeSegments; if (tubeLabel) tubeLabel.textContent = cur.tubeSegments; }
+    if (ndiMsaa) ndiMsaa.value = cur.ndiMsaa;
+    if (preserveBuffer) preserveBuffer.checked = cur.preserveDrawingBuffer;
+    if (shadowsEnabled) shadowsEnabled.checked = cur.shadowsEnabled;
+  }
 }
 
 // Inizializza

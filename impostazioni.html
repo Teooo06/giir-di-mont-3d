@@ -179,6 +179,105 @@
             </div>
           </div>
         </section>
+
+        <!-- Colonna Destra: Prestazioni Grafiche -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <span class="badge">PRESTAZIONI GRAFICHE</span>
+              <h2>Preset Qualità / Performance</h2>
+              <p class="subtitle">Scegli il profilo adatto alla potenza del tuo Mac. Più alto = più dettagli, più basso = più FPS.</p>
+            </div>
+          </div>
+
+          <div class="settings-form">
+            <div class="form-group">
+              <label>Profilo Prestazioni</label>
+              <div class="radio-cards" id="graphics-preset-group">
+                <label class="radio-card">
+                  <input type="radio" name="graphicsPreset" value="high" />
+                  <div class="card-content">
+                    <strong>💪 Alto (Desktop / Mac Pro)</strong>
+                    <small>Ombre 2048, Alberi 1400, Tracciato 800 segmenti, MSAA 4x</small>
+                  </div>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="graphicsPreset" value="balanced" checked />
+                  <div class="card-content">
+                    <strong>⚖️ Bilanciato (MacBook Pro / Air M1-M3)</strong>
+                    <small>Ombre 1024, Alberi 800, Tracciato 600 segmenti, MSAA 2x</small>
+                  </div>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="graphicsPreset" value="performance" />
+                  <div class="card-content">
+                    <strong>⚡ Performance (MacBook Air base / Mac meno recenti)</strong>
+                    <small>Ombre 512, Alberi 400, Tracciato 400 segmenti, MSAA off</small>
+                  </div>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="graphicsPreset" value="custom" />
+                  <div class="card-content">
+                    <strong>🔧 Personalizzato</strong>
+                    <small>Configura manualmente ogni parametro sotto</small>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div id="custom-graphics-settings" class="form-group" style="display: none;">
+              <label>Impostazioni Personalizzate</label>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Risoluzione Ombre <span id="shadow-label">1024</span></label>
+                  <input type="range" id="shadow-resolution" min="256" max="2048" step="256" value="1024" class="form-slider" />
+                </div>
+                <div class="form-group">
+                  <label>Alberi Instanced <span id="trees-label">800</span></label>
+                  <input type="range" id="trees-count" min="100" max="2000" step="100" value="800" class="form-slider" />
+                </div>
+                <div class="form-group">
+                  <label>Segmenti Tracciato <span id="tube-label">600</span></label>
+                  <input type="range" id="tube-segments" min="200" max="1000" step="50" value="600" class="form-slider" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>MSAA NDI</label>
+                  <select id="ndi-msaa" class="form-control">
+                    <option value="0">Disabilitato</option>
+                    <option value="2">2x</option>
+                    <option value="4">4x</option>
+                    <option value="8">8x</option>
+                  </select>
+                </div>
+                <div class="form-group checkbox-group">
+                  <label>
+                    <input type="checkbox" id="chk-preserve-buffer" />
+                    Preserve Drawing Buffer (cattura schermo, costa FPS)
+                  </label>
+                </div>
+                <div class="form-group checkbox-group">
+                  <label>
+                    <input type="checkbox" id="chk-shadows-enabled" checked />
+                    Ombre Dinamiche Attive
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Target FPS NDI <span id="ndi-fps-label">50</span></label>
+              <input type="range" id="ndi-fps-input" min="25" max="60" step="5" value="50" class="form-slider" />
+              <small class="help-text">FPS target per l'uscita broadcast NDI. Più basso = meno banda CPU/GPU.</small>
+            </div>
+
+            <div class="banner-box">
+              <strong>💡 Suggerimento</strong>
+              <p>Il profilo <strong>Bilanciato</strong> è ottimizzato per MacBook Air M2. Se vedi <strong>45+ FPS</strong> stabili nell'HUD NDI, puoi provare "Alto". Se scendi sotto <strong>35 FPS</strong>, passa a "Performance".</p>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
 
