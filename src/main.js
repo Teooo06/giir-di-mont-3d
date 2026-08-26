@@ -24,6 +24,10 @@ camera.position.set(0, 480, 760);
 // Telecamera Program per NDI (1920x1080 16:9 fisso)
 const programCamera = new THREE.PerspectiveCamera(40, 16 / 9, 2, 9000);
 programCamera.position.copy(camera.position);
+// Layer 1 = label NDI-only (sprite), layer 0 = tutto il resto. Browser vede solo 0, NDI vede 0+1
+camera.layers.set(0);
+programCamera.layers.set(0);
+programCamera.layers.enable(1);
 
 // Renderer WebGL
 const renderer = new THREE.WebGLRenderer({
@@ -215,9 +219,65 @@ function getOrCreateAthleteMesh(athlete) {
   return entry;
 }
 
+function createCheckpointLabelSprite(name, km, themeColor) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const boxH = 110;
+  const boxY = 0;
+  // Background box with rounded corners
+  ctx.fillStyle = 'rgba(14, 20, 23, 0.92)';
+  const r = 10;
+  ctx.beginPath();
+  ctx.roundRect(0, boxY, w, boxH, r);
+  ctx.fill();
+  // Top accent
+  ctx.fillStyle = themeColor;
+  ctx.fillRect(0, boxY, w, 6);
+  // Name
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 34px Barlow Condensed, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(name.toUpperCase(), w / 2, boxY + 38);
+  // Subtext
+  ctx.fillStyle = '#f6f4e9';
+  ctx.font = '700 20px DM Sans, sans-serif';
+  ctx.fillText(`${km} km · checkpoint`, w / 2, boxY + 76);
+  // Stem line
+  ctx.strokeStyle = themeColor;
+  ctx.lineWidth = 6;
+  ctx.shadowColor = themeColor;
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.moveTo(w / 2, boxH);
+  ctx.lineTo(w / 2, h);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.layers.set(1); // solo NDI
+  sprite.scale.set(52, 16.25, 1); // 512:160 = 3.2:1, world units
+  return sprite;
+}
+
 function clearCheckpoints() {
+  labels.forEach(({ el, sprite }) => {
+    el.remove();
+    if (sprite) {
+      if (sprite.material.map) sprite.material.map.dispose();
+      sprite.material.dispose();
+      // rimosso da checkpointGroup via clear()
+    }
+  });
   checkpointGroup.clear();
-  labels.forEach(({ el }) => el.remove());
   labels = [];
 }
 
@@ -238,8 +298,14 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
   el.innerHTML = `<span>${name}</span><small>${km} km · checkpoint</small>`;
   document.querySelector('#app').append(el);
 
+  // Sprite NDI-only (layer 1) — visibile solo su Program 16:9
+  const sprite = createCheckpointLabelSprite(name, km, settingsManager.settings.themeColor);
+  sprite.position.copy(worldPos).add(new THREE.Vector3(0, 18, 0));
+  checkpointGroup.add(sprite);
+
   labels.push({
     el,
+    sprite,
     id,
     isStart,
     isFinish,
@@ -618,18 +684,21 @@ function updateLabels() {
   const showStart = currentKm < 16.0;
   const showFinish = currentKm >= 16.0;
 
-  labels.forEach(({ el, point, isStart, isFinish, marker }) => {
+  labels.forEach(({ el, sprite, point, isStart, isFinish, marker }) => {
     if (isStart && !showStart) {
       el.style.display = 'none';
       if (marker) marker.visible = false;
+      if (sprite) sprite.visible = false;
       return;
     }
     if (isFinish && !showFinish) {
       el.style.display = 'none';
       if (marker) marker.visible = false;
+      if (sprite) sprite.visible = false;
       return;
     }
     if (marker) marker.visible = true;
+    if (sprite) sprite.visible = true;
 
     tempVec.copy(point).project(camera);
     const visible = tempVec.z < 1 && tempVec.x > -1.15 && tempVec.x < 1.15 && tempVec.y > -1.2 && tempVec.y < 1.2;
