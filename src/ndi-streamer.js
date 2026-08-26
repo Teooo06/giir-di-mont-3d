@@ -31,16 +31,31 @@ export class NdiStreamer {
     this.lastFrameTime = 0;
     this.frameInterval = 1000 / this.targetFps;
 
-    // Render target dedicato 1080p
-    this.renderTarget = new THREE.WebGLRenderTarget(this.width, this.height, {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
-      format: THREE.RGBAFormat,
-      type: THREE.UnsignedByteType,
-      generateMipmaps: false,
-      depthBuffer: true,
-      stencilBuffer: false
+    // --- NUOVA STRATEGIA: renderer NDI dedicato, isolato dal canvas browser ---
+    // Un canvas hidden 1920x1080 con il suo WebGL context, così viewport e pixelRatio
+    // del browser non interferiscono mai con il Program.
+    this.ndiCanvas = document.createElement('canvas');
+    this.ndiCanvas.width = this.width;
+    this.ndiCanvas.height = this.height;
+    this.ndiCanvas.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1920px;height:1080px;pointer-events:none;opacity:0;';
+    // Appende solo quando il body è pronto (main.js è a fine body, quindi ok)
+    if (document.body) document.body.appendChild(this.ndiCanvas);
+    else addEventListener('DOMContentLoaded', () => document.body.appendChild(this.ndiCanvas));
+
+    this.ndiRenderer = new THREE.WebGLRenderer({
+      canvas: this.ndiCanvas,
+      antialias: true,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: true,
+      alpha: true
     });
+    this.ndiRenderer.setSize(this.width, this.height, false);
+    this.ndiRenderer.setPixelRatio(1);
+    this.ndiRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.ndiRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.ndiRenderer.toneMappingExposure = 1.12;
+    this.ndiRenderer.shadowMap.enabled = true;
+    this.ndiRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.initWebSocket();
   }
@@ -114,11 +129,29 @@ export class NdiStreamer {
 
   /**
    * Cattura e invia un frame broadcast 1080p all'uscita NDI
-   * @param {THREE.WebGLRenderer} renderer 
+   * Ora usa il renderer NDI dedicato, non il renderTarget condiviso.
    * @param {THREE.Scene} scene 
-   * @param {THREE.Camera} camera 
+   * @param {THREE.Camera} programCamera 
    */
-  captureAndSend(renderer, scene, camera) {
+  captureAndSend(renderer, scene, programCamera) {
+    // renderer param mantenuto per compatibilità con main.js, ma ignorato
+    // Usiamo this.ndiRenderer dedicato
+    const targetRenderer = this.ndiRenderer;
+    const targetScene = scene;
+    const targetCamera = programCamera;
+
+    // Supporta anche chiamata vecchia con 3 args (renderer, scene, camera)
+    let actualScene = targetScene;
+    let actualCamera = targetCamera;
+    if (scene && scene.isScene === undefined && renderer && renderer.isScene) {
+      // Chiamata con (scene, camera) senza renderer
+      actualScene = renderer;
+      actualCamera = scene;
+    } else if (renderer && scene && programCamera) {
+      actualScene = scene;
+      actualCamera = programCamera;
+    }
+
     if (!this.enabled || !this.isConnected || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
       return;
     }
@@ -134,18 +167,14 @@ export class NdiStreamer {
 
     this.lastFrameTime = now;
 
-    // Renderizza su render target dedicato 1080p
-    renderer.setRenderTarget(this.renderTarget);
-    renderer.render(scene, camera);
+    // Renderizza con il renderer NDI dedicato (1920x1080, viewport piena, no interferenze)
+    targetRenderer.render(actualScene, actualCamera);
 
-    // Leggi i pixel dal framebuffer
-    const gl = renderer.getContext();
+    // Leggi i pixel dal framebuffer NDI
+    const gl = targetRenderer.getContext();
     gl.readPixels(0, 0, this.width, this.height, gl.RGBA, gl.UNSIGNED_BYTE, this.pixelBuffer);
 
-    // Ripristina SUBITO a null per non interferire con il canvas a schermo
-    renderer.setRenderTarget(null);
-
-    // Inversione verticale veloce delle righe (1.3ms)
+    // Inversione verticale
     const w = this.width;
     const h = this.height;
     for (let y = 0; y < h; y++) {

@@ -671,6 +671,60 @@ body { margin: 0; overflow: hidden; }
   font: 700 10px 'DM Sans', sans-serif;
 }
 
+/* NDI Frame Overlay — mostra esattamente cosa vede il Program 16:9 */
+.ndi-frame {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  /* 16:9 sempre centrato, max viewport meno margini HUD */
+  width: min(calc(100vw - 32px), calc((100vh - 32px) * 16 / 9));
+  height: min(calc(100vh - 32px), calc((100vw - 32px) * 9 / 16));
+  aspect-ratio: 16 / 9;
+  border: 1.5px dashed rgba(223, 246, 84, 0.9);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 8;
+  box-shadow:
+    0 0 0 1px rgba(223, 246, 84, 0.15) inset,
+    0 0 22px rgba(223, 246, 84, 0.22);
+}
+.ndi-frame::before,
+.ndi-frame::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-color: var(--accent-neon);
+  border-style: solid;
+}
+.ndi-frame::before {
+  top: -1.5px; left: -1.5px;
+  border-width: 3px 0 0 3px;
+  border-top-left-radius: 6px;
+}
+.ndi-frame::after {
+  bottom: -1.5px; right: -1.5px;
+  border-width: 0 3px 3px 0;
+  border-bottom-right-radius: 6px;
+}
+.ndi-frame-label {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent-neon);
+  color: #11170e;
+  font: 700 9px var(--font-primary);
+  letter-spacing: 0.12em;
+  padding: 3px 8px;
+  border-radius: 3px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+body.clean .ndi-frame { display: none; }
+.ndi-frame.hidden { display: none !important; }
+
 /* Clean View Notice */
 .clean-notice {
   display: none;
