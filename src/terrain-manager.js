@@ -36,12 +36,8 @@ export class TerrainManager {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
       this.terrainData = await res.json();
-      const bbox = this.terrainData.bbox;
-      const lonRange = bbox.maxLon - bbox.minLon;
-      const latRange = bbox.maxLat - bbox.minLat;
-      const padding = 0.15;
-      this.centerLon = (bbox.minLon + bbox.maxLon) / 2;
-      this.centerLat = (bbox.minLat + bbox.maxLat) / 2;
+      this.centerLat = (this.terrainData.bbox.minLat + this.terrainData.bbox.maxLat) / 2;
+      this.centerLon = (this.terrainData.bbox.minLon + this.terrainData.bbox.maxLon) / 2;
       this.buildTerrainMesh();
       return true;
     } catch (err) {

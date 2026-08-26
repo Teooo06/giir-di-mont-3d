@@ -34,7 +34,7 @@ const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: true,
   powerPreference: 'high-performance',
-  preserveDrawingBuffer: false
+  preserveDrawingBuffer: true
 });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -50,7 +50,7 @@ controls.target.set(0, 70, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minDistance = 40;
-controls.maxDistance = 3500;
+controls.maxDistance = 2600;
 controls.maxPolarAngle = Math.PI * 0.485;
 
 // Illuminazione Montana Naturale e Chiara (luce bianca pulita, niente dominante gialla)
@@ -60,7 +60,7 @@ scene.add(hemiLight);
 const sun = new THREE.DirectionalLight('#ffffff', 3.2);
 sun.position.set(-560, 920, 460);
 sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = sun.shadow.camera.bottom = -950;
 sun.shadow.camera.right = sun.shadow.camera.top = 950;
 sun.shadow.camera.near = 100;
@@ -77,10 +77,7 @@ const settingsManager = new SettingsManager({
       terrainManager.applyStyle(settings.terrainStyle);
       terrainManager.setVerticalExaggeration(settings.verticalExaggeration);
       if (rawTrackPoints.length > 0) rebuildTrack3D();
-      generateAlpineForest();
     }
-    // Applica impostazioni grafiche
-    applyGraphicsSettings(settings);
   }
 });
 
@@ -107,12 +104,8 @@ const ndiStreamer = new NdiStreamer({
   fps: settingsManager.settings.ndiFps,
   width: 1920,
   height: 1080,
-  msaa: settingsManager.settings.ndiMsaa,
   onStatusChange: updateNdiHud
 });
-
-// Applica impostazioni grafiche iniziali (dopo creazione ndiStreamer)
-applyGraphicsSettings(settingsManager.settings);
 
 // Canale di sincronizzazione istantanea con /impostazioni
 try {
@@ -127,33 +120,7 @@ try {
 } catch (e) {}
 
 // ----------------------------------------------------
-// 4. IMPOSTAZIONI GRAFICHE DINAMICHE
-// ----------------------------------------------------
-function applyGraphicsSettings(settings) {
-  // Ombre
-  renderer.shadowMap.enabled = settings.shadowsEnabled;
-  if (sun.shadow) {
-    const res = settings.shadowResolution;
-    sun.shadow.mapSize.set(res, res);
-  }
-
-  // MSAA NDI render target
-  if (ndiStreamer && ndiStreamer.setMsaa) {
-    ndiStreamer.setMsaa(settings.ndiMsaa);
-  }
-
-  // Preserve drawing buffer
-  // Nota: richiede ricreazione renderer, per ora solo log
-  // if (settings.preserveDrawingBuffer !== renderer.preserveDrawingBuffer) {
-  //   console.warn('preserveDrawingBuffer change requires renderer restart');
-  // }
-
-  // FPS NDI
-  ndiStreamer.setFps(settings.ndiFps);
-}
-
-// ----------------------------------------------------
-// 5. GENERAZIONE ALBERELLI 3D STILIZZATI (MICRO FORESTE ALPINE)
+// 3. GENERAZIONE ALBERELLI 3D STILIZZATI (MICRO FORESTE ALPINE)
 // ----------------------------------------------------
 let treesMesh = null;
 function generateAlpineForest() {
@@ -162,7 +129,7 @@ function generateAlpineForest() {
     treesMesh.geometry.dispose();
   }
 
-  const count = settingsManager.settings.treesCount || 800;
+  const count = 1400;
   const treeGeo = new THREE.ConeGeometry(2.4, 11, 5);
   treeGeo.translate(0, 5.5, 0); // Base a Y=0
   const treeMat = new THREE.MeshStandardMaterial({
@@ -297,7 +264,7 @@ function createCheckpointLabelSprite(name, km, themeColor) {
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: true });
   const sprite = new THREE.Sprite(mat);
   sprite.layers.set(1); // solo NDI (browser usa HTML .label)
-  sprite.scale.set(60, 18.75, 1);
+  sprite.scale.set(48, 15, 1); // 512:160 = 3.2:1, world units
   return sprite;
 }
 
@@ -316,7 +283,7 @@ function clearCheckpoints() {
 
 function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = false) {
   const marker = new THREE.Mesh(
-    new THREE.SphereGeometry(3.0, 16, 12),
+    new THREE.SphereGeometry(4.8, 16, 12),
     new THREE.MeshBasicMaterial({ color: isStart || isFinish ? '#ffffff' : settingsManager.settings.themeColor })
   );
   marker.position.copy(worldPos);
@@ -350,12 +317,9 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
 function rebuildTrack3D() {
   if (rawTrackPoints.length < 2) return;
 
-  // Campiona il terreno per far aderire perfettamente il tracciato
   const worldPoints = rawTrackPoints.map(p => {
     const v = terrainManager.coordToWorld(p.lat, p.lon, p.ele);
-    const terrainY = terrainManager.getElevationAtWorld(v.x, v.z);
-    // Usa il terreno DEM come base, non l'elevazione GPX (che può essere inaccurata)
-    v.y = terrainY + 1.5; // Offset minimo sopra il terreno
+    v.y += 1.8;
     return v;
   });
 
@@ -363,8 +327,7 @@ function rebuildTrack3D() {
 
   routeCurve = new THREE.CatmullRomCurve3(worldPoints, false, 'centripetal');
 
-  const tubeSegments = settingsManager.settings.tubeSegments || 600;
-  const tubeGeo = new THREE.TubeGeometry(routeCurve, tubeSegments, 0.6, 6, false);
+  const tubeGeo = new THREE.TubeGeometry(routeCurve, 800, 1.1, 7, false);
   routeLine = new THREE.Mesh(
     tubeGeo,
     new THREE.MeshStandardMaterial({
@@ -378,26 +341,13 @@ function rebuildTrack3D() {
 
   clearCheckpoints();
   raceManager.checkpoints.forEach(cp => {
-    let pt;
-    if (cp.lat && cp.lon) {
-      pt = terrainManager.coordToWorld(cp.lat, cp.lon, cp.ele);
-      const terrainY = terrainManager.getElevationAtWorld(pt.x, pt.z);
-      pt.y = terrainY + 3.5;
-    } else {
-      const ratio = Math.min(0.999, Math.max(0.001, cp.km / raceManager.totalKm));
-      pt = routeCurve.getPointAt(ratio);
-    }
+    const ratio = Math.min(0.999, Math.max(0.001, cp.km / raceManager.totalKm));
+    const pt = routeCurve.getPointAt(ratio);
     add3DCheckpoint(cp.id, cp.name, cp.km.toFixed(1), pt, cp.isStart, cp.isFinish);
   });
 
-  // Prepara array di elevazioni del terreno per il profilo altimetrico (coerente con track 3D)
-  const terrainElevations = rawTrackPoints.map(p => {
-    const v = terrainManager.coordToWorld(p.lat, p.lon, p.ele);
-    return terrainManager.getElevationAtWorld(v.x, v.z);
-  });
-
   if (elevationProfile && typeof elevationProfile.setTrackData === 'function') {
-    elevationProfile.setTrackData(rawTrackPoints, raceManager.checkpoints, terrainElevations);
+    elevationProfile.setTrackData(rawTrackPoints, raceManager.checkpoints);
   }
 }
 
@@ -483,6 +433,11 @@ function setScene(sceneName) {
     camera.position.copy(p).add(new THREE.Vector3(-80, 50, 95));
     controls.target.copy(p);
     if (modeEl) modeEl.textContent = 'INQUADRATURA: BOCCHETTA DI LAREC (2070m)';
+  } else if (sceneName === 'pizzo' && routeCurve) {
+    const p = routeCurve.getPointAt(27.5 / 32.0);
+    camera.position.copy(p).add(new THREE.Vector3(85, 65, -75));
+    controls.target.copy(p);
+    if (modeEl) modeEl.textContent = 'INQUADRATURA: ALPE DELEGUAGGIO';
   } else if (sceneName === 'topdown') {
     camera.position.set(0, 900, 10);
     controls.target.set(0, 40, 0);
@@ -500,7 +455,8 @@ addEventListener('keydown', (e) => {
   if (e.key === '1') setScene('overview');
   if (e.key === '2') setScene('runner');
   if (e.key === '3') setScene('checkpoint');
-  if (e.key === '4') setScene('topdown');
+  if (e.key === '4') setScene('pizzo');
+  if (e.key === '5') setScene('topdown');
   if (e.key === ' ') {
     isAutoPlaying = !isAutoPlaying;
     e.preventDefault();
@@ -795,6 +751,19 @@ function frame() {
   }
 
   controls.update();
+
+  // Scala elementi 3D inversamente allo zoom (più vicino = più piccoli) — solo scala locale, mai posizione
+  const camDist = camera.position.distanceTo(controls.target);
+  const zoomScale = THREE.MathUtils.clamp(camDist / 750, 0.45, 1.0);
+  labels.forEach(({ marker, sprite }) => {
+    if (marker) marker.scale.setScalar(zoomScale);
+    if (sprite) sprite.scale.set(48 * zoomScale, 15 * zoomScale, 1);
+  });
+  athleteMeshes.forEach(({ sprite }) => {
+    if (sprite) sprite.scale.set(28 * zoomScale, 28 * zoomScale, 1);
+  });
+  // NON scalare routeLine e treesMesh come mesh intera (sposterebbe la geometria sotto la montagna)
+  // Per tracciato e alberi lo scaling va fatto su geometria/instanza, per ora lasciato a 1 per stabilità
 
   // Sincronizza Program camera al 100% con la camera browser, poi forza 16:9
   programCamera.copy(camera);

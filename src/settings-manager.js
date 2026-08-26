@@ -1,32 +1,5 @@
 export class SettingsManager {
   constructor(options = {}) {
-    this.graphicsPresets = {
-      high: {
-        shadowResolution: 2048,
-        treesCount: 1400,
-        tubeSegments: 800,
-        ndiMsaa: 4,
-        preserveDrawingBuffer: true,
-        shadowsEnabled: true
-      },
-      balanced: {
-        shadowResolution: 1024,
-        treesCount: 800,
-        tubeSegments: 600,
-        ndiMsaa: 2,
-        preserveDrawingBuffer: false,
-        shadowsEnabled: true
-      },
-      performance: {
-        shadowResolution: 512,
-        treesCount: 400,
-        tubeSegments: 400,
-        ndiMsaa: 0,
-        preserveDrawingBuffer: false,
-        shadowsEnabled: false
-      }
-    };
-
     this.defaultSettings = {
       themeColor: '#dff654', // Giallo fluo Giir di Mont
       fontFamily: 'Barlow Condensed', // 'Barlow Condensed', 'DM Sans', 'Montserrat', 'Oswald'
@@ -36,14 +9,7 @@ export class SettingsManager {
       showCheckpoints3D: true,
       showElevationProfile: true,
       ndiFps: 50,
-      ndiSourceName: 'GIIR-3D-PROGRAM',
-      graphicsPreset: 'balanced', // 'high', 'balanced', 'performance', 'custom'
-      shadowResolution: 1024,
-      treesCount: 800,
-      tubeSegments: 600,
-      ndiMsaa: 2,
-      preserveDrawingBuffer: false,
-      shadowsEnabled: true
+      ndiSourceName: 'GIIR-3D-PROGRAM'
     };
 
     this.settings = { ...this.defaultSettings };
@@ -58,7 +24,6 @@ export class SettingsManager {
         this.settings = { ...this.defaultSettings, ...JSON.parse(saved) };
       }
     } catch (e) {}
-    this.applyGraphicsPreset(this.settings.graphicsPreset);
     this.applySettingsToDOM();
   }
 
@@ -73,21 +38,8 @@ export class SettingsManager {
   }
 
   update(newVals) {
-    const oldPreset = this.settings.graphicsPreset;
     this.settings = { ...this.settings, ...newVals };
-    
-    if (newVals.graphicsPreset && newVals.graphicsPreset !== oldPreset) {
-      this.applyGraphicsPreset(newVals.graphicsPreset);
-    }
     this.saveSettings();
-  }
-
-  applyGraphicsPreset(presetName) {
-    if (presetName === 'custom') return;
-    const preset = this.graphicsPresets[presetName];
-    if (preset) {
-      this.settings = { ...this.settings, ...preset };
-    }
   }
 
   applySettingsToDOM() {
