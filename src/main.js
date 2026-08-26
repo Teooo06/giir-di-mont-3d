@@ -18,12 +18,12 @@ scene.background = new THREE.Color('#94b5c7');
 scene.fog = new THREE.FogExp2('#9dbecd', 0.00045);
 
 // Telecamera Operatore (Viewport)
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 2, 9000);
-camera.position.set(0, 550, 950);
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 2, 9000);
+camera.position.set(0, 480, 760);
 
 // Telecamera Program per NDI (1920x1080 16:9 fisso)
-const programCamera = new THREE.PerspectiveCamera(45, 16 / 9, 2, 9000);
-programCamera.position.set(0, 550, 950);
+const programCamera = new THREE.PerspectiveCamera(40, 16 / 9, 2, 9000);
+programCamera.position.copy(camera.position);
 // Layer 1 = label NDI-only (sprite), layer 0 = tutto il resto. Browser vede solo 0, NDI vede 0+1
 camera.layers.set(0);
 programCamera.layers.set(0);
@@ -350,10 +350,12 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
 function rebuildTrack3D() {
   if (rawTrackPoints.length < 2) return;
 
+  // Campiona il terreno per far aderire perfettamente il tracciato
   const worldPoints = rawTrackPoints.map(p => {
     const v = terrainManager.coordToWorld(p.lat, p.lon, p.ele);
     const terrainY = terrainManager.getElevationAtWorld(v.x, v.z);
-    v.y = Math.max(v.y, terrainY) + 2.5;
+    // Usa il terreno DEM come base, non l'elevazione GPX (che può essere inaccurata)
+    v.y = terrainY + 1.5; // Offset minimo sopra il terreno
     return v;
   });
 
@@ -362,7 +364,7 @@ function rebuildTrack3D() {
   routeCurve = new THREE.CatmullRomCurve3(worldPoints, false, 'centripetal');
 
   const tubeSegments = settingsManager.settings.tubeSegments || 600;
-  const tubeGeo = new THREE.TubeGeometry(routeCurve, tubeSegments, 1.0, 6, false);
+  const tubeGeo = new THREE.TubeGeometry(routeCurve, tubeSegments, 0.6, 6, false);
   routeLine = new THREE.Mesh(
     tubeGeo,
     new THREE.MeshStandardMaterial({
@@ -380,7 +382,7 @@ function rebuildTrack3D() {
     if (cp.lat && cp.lon) {
       pt = terrainManager.coordToWorld(cp.lat, cp.lon, cp.ele);
       const terrainY = terrainManager.getElevationAtWorld(pt.x, pt.z);
-      pt.y = Math.max(pt.y, terrainY) + 3.5;
+      pt.y = terrainY + 3.5;
     } else {
       const ratio = Math.min(0.999, Math.max(0.001, cp.km / raceManager.totalKm));
       pt = routeCurve.getPointAt(ratio);
@@ -388,8 +390,14 @@ function rebuildTrack3D() {
     add3DCheckpoint(cp.id, cp.name, cp.km.toFixed(1), pt, cp.isStart, cp.isFinish);
   });
 
+  // Prepara array di elevazioni del terreno per il profilo altimetrico (coerente con track 3D)
+  const terrainElevations = rawTrackPoints.map(p => {
+    const v = terrainManager.coordToWorld(p.lat, p.lon, p.ele);
+    return terrainManager.getElevationAtWorld(v.x, v.z);
+  });
+
   if (elevationProfile && typeof elevationProfile.setTrackData === 'function') {
-    elevationProfile.setTrackData(rawTrackPoints, raceManager.checkpoints);
+    elevationProfile.setTrackData(rawTrackPoints, raceManager.checkpoints, terrainElevations);
   }
 }
 
@@ -462,7 +470,7 @@ function setScene(sceneName) {
   const ratio = selectedAthlete ? (selectedAthlete.km / raceManager.totalKm) : 0.45;
 
   if (sceneName === 'overview') {
-    camera.position.set(0, 550, 950);
+    camera.position.set(0, 480, 760);
     controls.target.set(0, 70, 0);
     if (modeEl) modeEl.textContent = 'PANORAMICA 3D VALLE PREMANA';
   } else if (sceneName === 'runner' && routeCurve) {
@@ -475,11 +483,6 @@ function setScene(sceneName) {
     camera.position.copy(p).add(new THREE.Vector3(-80, 50, 95));
     controls.target.copy(p);
     if (modeEl) modeEl.textContent = 'INQUADRATURA: BOCCHETTA DI LAREC (2070m)';
-  } else if (sceneName === 'pizzo' && routeCurve) {
-    const p = routeCurve.getPointAt(27.5 / 32.0);
-    camera.position.copy(p).add(new THREE.Vector3(85, 65, -75));
-    controls.target.copy(p);
-    if (modeEl) modeEl.textContent = 'INQUADRATURA: ALPE DELEGUAGGIO';
   } else if (sceneName === 'topdown') {
     camera.position.set(0, 900, 10);
     controls.target.set(0, 40, 0);
@@ -497,8 +500,7 @@ addEventListener('keydown', (e) => {
   if (e.key === '1') setScene('overview');
   if (e.key === '2') setScene('runner');
   if (e.key === '3') setScene('checkpoint');
-  if (e.key === '4') setScene('pizzo');
-  if (e.key === '5') setScene('topdown');
+  if (e.key === '4') setScene('topdown');
   if (e.key === ' ') {
     isAutoPlaying = !isAutoPlaying;
     e.preventDefault();

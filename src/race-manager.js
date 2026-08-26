@@ -11,11 +11,11 @@ export class RaceManager {
       { id: 'cp1', name: 'Alpe Chiarino', km: 4.8, ele: 1542.8, lat: 46.042958, lon: 9.446078, refSplit: '00:26:15' },
       { id: 'cp2', name: 'Alpe Vegessa (Cancello 1)', km: 9.0, ele: 1196.1, lat: 46.041193, lon: 9.466374, refSplit: '00:48:30' },
       { id: 'cp3', name: 'Bocchetta di Larec (GPM)', km: 14.5, ele: 2070.3, lat: 46.044809, lon: 9.492315, refSplit: '01:29:40' },
-      { id: 'cp4', name: 'Alpe Fraina', km: 16.8, ele: 1395.0, lat: 46.054928, lon: 9.464670, refSplit: '01:43:10' },
+      { id: 'cp4', name: 'Alpe Fraina', km: 16.7, ele: 1395.0, lat: 46.054928, lon: 9.464670, refSplit: '01:43:10' },
       { id: 'cp5', name: 'Alpe Rasga (Intermedio 4)', km: 19.0, ele: 1090.8, lat: 46.054928, lon: 9.464670, refSplit: '01:54:20' },
-      { id: 'cp6', name: 'Alpe Premaniga', km: 23.0, ele: 1400.0, lat: 46.060895, lon: 9.425510, refSplit: '02:21:00' },
-      { id: 'cp7', name: 'Alpe Solino (Cancello 2)', km: 25.0, ele: 1601.8, lat: 46.060895, lon: 9.425510, refSplit: '02:35:15' },
-      { id: 'cp8', name: 'Alpe Deleguaggio (Intermedio 5)', km: 27.5, ele: 1658.9, lat: 46.060895, lon: 9.425510, refSplit: '02:51:30' },
+      { id: 'cp6', name: 'Alpe Premaniga', km: 22.2, ele: 1400.0, lat: 46.060895, lon: 9.425510, refSplit: '02:21:00' },
+      { id: 'cp7', name: 'Alpe Solino (Cancello 2)', km: 24.4, ele: 1601.8, lat: 46.060895, lon: 9.425510, refSplit: '02:35:15' },
+      { id: 'cp8', name: 'Alpe Deleguaggio (Intermedio 5)', km: 26.9, ele: 1658.9, lat: 46.060895, lon: 9.425510, refSplit: '02:51:30' },
       { id: 'cp9', name: 'ARRIVO · Premana', km: 32.0, ele: 958.4, lat: 46.052978, lon: 9.420907, refSplit: '03:15:00', isFinish: true }
     ];
 

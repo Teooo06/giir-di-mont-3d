@@ -45,13 +45,14 @@ export class ElevationProfile {
     `;
   }
 
-  setTrackData(trackPoints, checkpoints = []) {
+  setTrackData(trackPoints, checkpoints = [], terrainElevations = null) {
     if (!trackPoints || trackPoints.length === 0) return;
     this.checkpoints = checkpoints;
 
     // Calcola distanze cumulative e altitudini
     let totalDist = 0;
-    this.profilePoints = [{ dist: 0, ele: trackPoints[0].ele || 960 }];
+    const baseEle = terrainElevations ? terrainElevations[0] : (trackPoints[0].ele || 960);
+    this.profilePoints = [{ dist: 0, ele: baseEle }];
 
     for (let i = 1; i < trackPoints.length; i++) {
       const p1 = trackPoints[i - 1];
@@ -60,7 +61,8 @@ export class ElevationProfile {
       const dLon = (p2.lon - p1.lon) * 77211;
       const stepDist = Math.sqrt(dLat * dLat + dLon * dLon) / 1000; // km
       totalDist += stepDist;
-      this.profilePoints.push({ dist: totalDist, ele: p2.ele || 960 });
+      const ele = terrainElevations ? terrainElevations[i] : (p2.ele || 960);
+      this.profilePoints.push({ dist: totalDist, ele });
     }
 
     this.totalKm = Math.max(32, totalDist);
