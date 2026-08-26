@@ -296,9 +296,7 @@ function createCheckpointLabelSprite(name, km, themeColor) {
   tex.magFilter = THREE.LinearFilter;
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: true });
   const sprite = new THREE.Sprite(mat);
-  // DEBUG: visibile ovunque così verifichiamo in browser prima di isolare su NDI
-  sprite.layers.set(0);
-  sprite.layers.enable(1);
+  sprite.layers.set(1); // solo NDI (browser usa HTML .label)
   sprite.scale.set(60, 18.75, 1);
   return sprite;
 }
