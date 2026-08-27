@@ -271,7 +271,7 @@ function createCheckpointLabelSprite(name, km, themeColor, showKm = true) {
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: true });
   const sprite = new THREE.Sprite(mat);
   sprite.layers.set(1); // solo NDI (browser usa HTML .label)
-  sprite.scale.set(48, 15, 1); // 512:160 = 3.2:1, world units
+  sprite.scale.set(62, 19.4, 1); // ingrandito per NDI 1080p30 più leggibile (era 48x15)
   return sprite;
 }
 
@@ -305,9 +305,9 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
   el.innerHTML = `<span>${name}</span><small>${km} km · checkpoint</small>`;
   document.querySelector('#app').append(el);
 
-  // Sprite NDI-only (layer 1) — P1: solo nome senza km (browser HTML resta con km)
+  // Sprite NDI-only (layer 1) — P1: solo nome senza km (browser HTML resta con km) — rialzato per visibilità NDI
   const sprite = createCheckpointLabelSprite(name, km, settingsManager.settings.themeColor, false);
-  sprite.position.copy(worldPos).add(new THREE.Vector3(0, 18, 0));
+  sprite.position.copy(worldPos).add(new THREE.Vector3(0, 22, 0));
   checkpointGroup.add(sprite);
 
   labels.push({
@@ -825,7 +825,7 @@ function frame() {
   const zoomScale = THREE.MathUtils.clamp(camDist / 750, 0.45, 1.0);
   labels.forEach(({ marker, sprite }) => {
     if (marker) marker.scale.setScalar(zoomScale);
-    if (sprite) sprite.scale.set(48 * zoomScale, 15 * zoomScale, 1);
+    if (sprite) sprite.scale.set(62 * zoomScale, 19.4 * zoomScale, 1);
   });
   athleteMeshes.forEach(({ sprite }) => {
     if (sprite) sprite.scale.set(28 * zoomScale, 28 * zoomScale, 1);
