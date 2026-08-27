@@ -368,7 +368,9 @@ function rebuildTrack3D() {
   archGroup = createArch({ height: 7, width: 8, tubeRadius: 1.6, color: '#ff1a1a' });
   const archRatio = Math.min(0.999, Math.max(0.001, 14.5 / raceManager.totalKm));
   placeArchAtRoute(archGroup, routeCurve, archRatio, terrainManager);
-  archGroup.rotation.y += Math.PI; // ulteriore 90° (tot 180 da base) — ora perpendicolare corretta come da immagine, segue costa
+  archGroup.rotation.y += Math.PI; // perpendicolare segue costa
+  archGroup.rotation.z += THREE.MathUtils.degToRad(-18); // antiorario 18° vista frontale — rialza da montagna incastrata
+  archGroup.position.y += 1.0; // rialza base
   scene.add(archGroup);
 
   if (elevationProfile && typeof elevationProfile.setTrackData === 'function') {
