@@ -24,11 +24,11 @@ export class MiniMap {
     this.sprite.layers.set(1); // NDI only
     this.sprite.scale.set(5.2, 5.2, 1); // ~256px a 1920x1080, angolo alto-destra
 
-    // HTML overlay per browser (stesso canvas clonato)
+    // HTML overlay per browser (stesso canvas clonato) — spostata da top:24 per non coprire Regia Scene
     this.htmlCanvas = document.createElement('canvas');
     this.htmlCanvas.width = this.size;
     this.htmlCanvas.height = this.size;
-    this.htmlCanvas.style.cssText = 'position:fixed;top:24px;right:24px;width:200px;height:200px;border:2px solid rgba(164,199,54,0.9);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.6);z-index:15;pointer-events:none;';
+    this.htmlCanvas.style.cssText = 'position:fixed;top:140px;right:24px;width:180px;height:180px;border:2px solid rgba(164,199,54,0.9);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.6);z-index:12;pointer-events:none;';
     this.htmlCanvas.className = 'minimap hud';
     this.htmlCtx = this.htmlCanvas.getContext('2d');
 
@@ -67,8 +67,8 @@ export class MiniMap {
     if (!this.worldBounds) return { x: this.size / 2, y: this.size / 2 };
     const nx = (x - this.worldBounds.minX) / (this.worldBounds.maxX - this.worldBounds.minX);
     const nz = (z - this.worldBounds.minZ) / (this.worldBounds.maxZ - this.worldBounds.minZ);
-    // Z invertito (world Z negativo = nord)
-    return { x: nx * (this.size - 16) + 8, y: (1 - nz) * (this.size - 16) + 8 };
+    // FIX flip: prima era (1-nz) → vista da sotto, ora nord in alto (top view corretta)
+    return { x: nx * (this.size - 16) + 8, y: nz * (this.size - 16) + 8 };
   }
 
   render(athletes = []) {
