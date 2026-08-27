@@ -285,7 +285,7 @@ function clearCheckpoints() {
 
 function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = false) {
   const marker = new THREE.Mesh(
-    new THREE.SphereGeometry(4.8, 16, 12),
+    new THREE.SphereGeometry(1.5, 16, 12),
     new THREE.MeshBasicMaterial({ color: isStart || isFinish ? '#ffffff' : settingsManager.settings.themeColor })
   );
   marker.position.copy(worldPos);
