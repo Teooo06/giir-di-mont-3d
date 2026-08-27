@@ -326,11 +326,14 @@ function rebuildTrack3D() {
 
   const worldPoints = rawTrackPoints.map(p => {
     const v = terrainManager.coordToWorld(p.lat, p.lon, p.ele);
-    // P2: allineamento dinamico al terreno — evita sinking/floating >3m
-    // invece di offset fisso 1.8, usa max tra quota GPX e terreno+1.5
+    // FIX Larec floating: usa sempre terreno+1.6 (non max con GPX), così traccia adiacente al suolo anche su salita
+    // GPX ele usata solo come fallback se terreno fuori bbox (terrainY 0)
     const terrainY = terrainManager.getElevationAtWorld(v.x, v.z);
-    const minY = terrainY + 1.5;
-    v.y = Math.max(v.y, minY);
+    if (terrainY !== 0 || terrainManager.terrainData) {
+      v.y = terrainY + 1.6;
+    } else {
+      v.y += 1.6;
+    }
     return v;
   });
 
