@@ -5,6 +5,7 @@ import { TerrainManager } from './terrain-manager.js';
 import { RaceManager } from './race-manager.js';
 import { SettingsManager } from './settings-manager.js';
 import { ElevationProfile } from './elevation-profile.js';
+import { createArch, placeArchAtRoute } from './models/arch.js';
 import './style.css';
 
 // ----------------------------------------------------
@@ -177,6 +178,7 @@ let routeLine = null;
 let labels = [];
 const checkpointGroup = new THREE.Group();
 scene.add(checkpointGroup);
+let archGroup = null; // P8 arco gonfiabile
 
 const athleteMeshes = new Map();
 
@@ -351,6 +353,16 @@ function rebuildTrack3D() {
     const pt = routeCurve.getPointAt(ratio);
     add3DCheckpoint(cp.id, cp.name, cp.km.toFixed(1), pt, cp.isStart, cp.isFinish);
   });
+
+  // P8 — Arco gonfiabile rosso a Bocchetta di Larec (14.5km, GPM)
+  if (archGroup) {
+    scene.remove(archGroup);
+    archGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  }
+  archGroup = createArch({ height: 10, width: 12, tubeRadius: 1.1, color: '#ff1a1a' });
+  const archRatio = Math.min(0.999, Math.max(0.001, 14.5 / raceManager.totalKm));
+  placeArchAtRoute(archGroup, routeCurve, archRatio, terrainManager);
+  scene.add(archGroup);
 
   if (elevationProfile && typeof elevationProfile.setTrackData === 'function') {
     elevationProfile.setTrackData(rawTrackPoints, raceManager.checkpoints);
