@@ -219,7 +219,7 @@ function getOrCreateAthleteMesh(athlete) {
   return entry;
 }
 
-function createCheckpointLabelSprite(name, km, themeColor) {
+function createCheckpointLabelSprite(name, km, themeColor, showKm = true) {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 160;
@@ -236,16 +236,18 @@ function createCheckpointLabelSprite(name, km, themeColor) {
   // Top accent
   ctx.fillStyle = themeColor;
   ctx.fillRect(0, boxY, w, 6);
-  // Name
+  // Name — centrato se senza km (P1 NDI solo nome)
   ctx.fillStyle = '#ffffff';
   ctx.font = '700 34px Barlow Condensed, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(name.toUpperCase(), w / 2, boxY + 38);
-  // Subtext
-  ctx.fillStyle = '#f6f4e9';
-  ctx.font = '700 20px DM Sans, sans-serif';
-  ctx.fillText(`${km} km · checkpoint`, w / 2, boxY + 76);
+  ctx.fillText(name.toUpperCase(), w / 2, showKm ? boxY + 38 : boxY + 55);
+  // Subtext — solo se showKm (browser resta con km, NDI P1 solo nome)
+  if (showKm) {
+    ctx.fillStyle = '#f6f4e9';
+    ctx.font = '700 20px DM Sans, sans-serif';
+    ctx.fillText(`${km} km · checkpoint`, w / 2, boxY + 76);
+  }
   // Stem line
   ctx.strokeStyle = themeColor;
   ctx.lineWidth = 6;
@@ -298,8 +300,8 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
   el.innerHTML = `<span>${name}</span><small>${km} km · checkpoint</small>`;
   document.querySelector('#app').append(el);
 
-  // Sprite NDI-only (layer 1) — visibile solo su Program 16:9
-  const sprite = createCheckpointLabelSprite(name, km, settingsManager.settings.themeColor);
+  // Sprite NDI-only (layer 1) — P1: solo nome senza km (browser HTML resta con km)
+  const sprite = createCheckpointLabelSprite(name, km, settingsManager.settings.themeColor, false);
   sprite.position.copy(worldPos).add(new THREE.Vector3(0, 18, 0));
   checkpointGroup.add(sprite);
 
