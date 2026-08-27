@@ -1,6 +1,31 @@
 # TODO — Giir di Mont 3D — Simulatore 3D Gara / Flusso NDI
 
 > Lista aggiornata il 27/08/2026 — sostituisce la TODO del 26/08/2026. Branch di lavoro `dev-work` (ex `DevTeooo`), merge su `master` solo quando verificato. Ogni punto = commit + test + push. Verificare dopo ogni modifica: rendering stabile, NDI 1080p50 OK, track visibile, simulazione sincronizzata, camere funzionanti.
+> **Sync 27/08 18:30:** `dev-work` allineato a `master` (`da932fc`+`10539d6`) + `feat/ndi-50fps` (`26f47b3` perf + `a0f7d42` cam tween di lucabert00) + fix doppio NDI (`1ad4004`/`e6ef653`). Build `vite build` OK.
+
+## Assegnazioni lavoro (evita concorrenza)
+
+> Regola: un task = un branch/commit + push + verifica NDI. Se prendi un task, commenta l'issue GitHub corrispondente. `te` = Muse Spark (assistant), `lucabert00` = collaboratore umano.
+
+| # | Priorità / Issue | Task | Assegnato | Stato | Note |
+|---|---|---|---|---|---|
+| P1 | Visualizzazione NDI e checkpoint (senza km) `src/main.js:222` | Modificare `createCheckpointLabelSprite` per NDI solo nome | **te** | [ ] DA FARE | Dipende da fix doppio NDI appena messo (1ad4004) |
+| P2 | GPX allineamento `src/main.js:321` | `scripts/correct-gpx.js` + offset dinamico | **te** | [ ] DA FARE | Complementare a TER-1/2 |
+| P3 | Sistema cronologico `src/main.js:725` `src/race-manager.js:79` | `computeSegmentTimes()` + `frame()` segment-based | **lucabert00** | [ ] DA FARE | Richiede test con splits |
+| P4 | Mondo 3D 2× `src/terrain-manager.js:91` | Estendere DEM + mosaico satellitare | **lucabert00** | [ ] DA FARE | Dopo TER-1/2 |
+| P5 | Checkpoint profilo+sfere `src/main.js:285` | Ridurre `SphereGeometry 4.8→1.5` + fix `elevation-profile.js` | **te** | [ ] DA FARE | ZoomScale già ok |
+| P6 | Insegue Leader `src/main.js:744` | Follow con tangente + raycast (CAM-2 #10) | **lucabert00** | [~] PARZIALE | Tween 1.8s già fatto `a0f7d42` (chiude #9), resta smoothing #10 |
+| P7 | Controllo remoto camera | Gamepad + WS `controllo-telecamera.html` | **te** | [ ] DA FARE | `vite --host` già pronto |
+| P8 | Arco gonfiabile `Arco Gonfiabile.png` | `src/models/arch.js` Extrude rossa a GPM 14.5km | **lucabert00** | [ ] DA FARE | Posizione `46.044809,9.492315` da verificare |
+| NDI-1 | #7 50 FPS sustained | shadow 1024, tube 400, trees 800, PCF | **lucabert00** | [x] FATTO `26f47b3` | Verificare su NDI Studio Monitor ≥45fps |
+| NDI-2 | #8 Verify NDI quality | Screenshot diff browser vs NDI | **te** | [~] CODICE OK, verifica manca | Codice MSAA/SRGB/16:9 già in `da932fc`, commento su #8 |
+| CAM-1 | #9 Cinematic transitions | Bezier/lerp 1.8s | **lucabert00** | [x] FATTO `a0f7d42` | `easeInOutCubic` in `src/main.js:412` |
+| CAM-2 | #10 Auto-follow smoothing | dead-zone + look-ahead 15-20m | **lucabert00** | [ ] DA FARE | Dopo P6 |
+| GFX-1 | #11 Lower-thirds | flag/foto/gap/pace | **te** | [ ] DA FARE | Layer1+HTML |
+| GFX-2 | #12 Mini-map PIP | ortho 200-300 + dots | **te** | [ ] DA FARE | `renderTarget` |
+| FIX | Doppio NDI source (2 mappe alternate) | Server ignora WS non attivo + singleton HMR | **te** | [x] FATTO `1ad4004`+`e6ef653` | Testare `npm run dev` + NDI → no flicker |
+
+> Online GitHub: Wayfinder #1 map `4/4` chiusi, #2-#5 chiusi, #7/#9 ora chiusi via commit (da chiudere su GitHub), #8/#10/#11/#12 aperti. PR #26 (`feat/ndi-50fps` → master) contiene già `26f47b3` ma non ancora `1ad4004`+`a0f7d42`+`e6ef653`; PR #6 chiusa.
 
 ## Ordine consigliato di implementazione
 
