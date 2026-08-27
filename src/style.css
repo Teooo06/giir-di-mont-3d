@@ -746,9 +746,12 @@ body.clean .clean-notice { display: block; }
 
 @media (max-width: 1350px) {
   /* FIX overlap: Personalizza Stile coperto da NDI: TEOOS-MACBOOK — sposta NDI sotto nav-tabs su schermi medi */
+  .brand strong { display: none; } /* togli 3D Live Visualizer come suggerito, lascia solo GIIR DI MONT */
+  .nav-tabs { left: 150px; right: auto; transform: none; } /* tutto a sinistra dopo brand */
   .ndi-bar { top: 68px; right: 24px; }
   .side-panel { top: 118px; }
-  /* minimap già spostata in basso-destra, evita ulteriore overlap */
+  /* tronca hostname lungo TEOOS-MACBOOK... */
+  #ndi-name { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
 }
 @media (max-width: 900px) {
   .elevation-hud { display: none; }
