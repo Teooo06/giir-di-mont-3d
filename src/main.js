@@ -321,7 +321,11 @@ function rebuildTrack3D() {
 
   const worldPoints = rawTrackPoints.map(p => {
     const v = terrainManager.coordToWorld(p.lat, p.lon, p.ele);
-    v.y += 1.8;
+    // P2: allineamento dinamico al terreno — evita sinking/floating >3m
+    // invece di offset fisso 1.8, usa max tra quota GPX e terreno+1.5
+    const terrainY = terrainManager.getElevationAtWorld(v.x, v.z);
+    const minY = terrainY + 1.5;
+    v.y = Math.max(v.y, minY);
     return v;
   });
 
