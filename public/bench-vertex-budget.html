@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Vertex Budget Bench — Giir di Mont 3D</title>
+<style>
+  body{font-family: ui-monospace, Menlo, monospace; background:#0e1417; color:#d6e0e6; padding:24px; line-height:1.5}
+  h1{font-size:18px; color:#dff654}
+  table{border-collapse:collapse; margin:12px 0}
+  th,td{border:1px solid #2a3a42; padding:6px 10px; text-align:right}
+  th{background:#1a262c; color:#9dbecd}
+  td:first-child,th:first-child{text-align:left}
+  .ok{color:#7ee787} .warn{color:#f0883e} .bad{color:#ff7b72}
+  #log{white-space:pre-wrap; background:#111c20; padding:12px; border-radius:8px; max-width:900px}
+  button{background:#dff654; border:0; padding:10px 16px; font-weight:700; cursor:pointer; border-radius:6px}
+</style>
+</head>
+<body>
+<h1>Vertex Budget Bench — NDI 1920×1080 readPixels + terrain render</h1>
+<p>Measures <code>renderer.render</code> + <code>gl.readPixels</code> + JS vertical flip for 256² / 512² / 1024² on <em>this</em> GPU. Run on the <b>target MacBook Air M2</b> for the real verdict (ticket #5).</p>
+<button id="run">Run bench (takes ~5s)</button>
+<p id="status"></p>
+<table id="out" style="display:none">
+  <thead><tr><th>Grid</th><th>verts</th><th>render p50</th><th>readPixels p50</th><th>flip p50</th><th>total p50</th><th>p95</th><th>verdict @50fps</th></tr></thead>
+  <tbody></tbody>
+</table>
+<pre id="log"></pre>
+<script type="module">
+import * as THREE from 'three';
+
+const W=1920, H=1080;
+const BYTES=W*H*4;
+let flipSrc=new Uint8Array(BYTES), flipDst=new Uint8Array(BYTES);
+let u32Src=new Uint32Array(flipSrc.buffer), u32Dst=new Uint32Array(flipDst.buffer);
+
+function makeTerrainMesh(grid){
+  const worldW=1350, worldH=890;
+  const g=new THREE.PlaneGeometry(worldW,worldH,grid-1,grid-1);
+  g.rotateX(-Math.PI/2);
+  const p=g.attributes.position;
+  for(let i=0;i<p.count;i++) p.setY(i,(Math.random()*1978)*0.125);
+  g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(p.count*3),3));
+  g.computeVertexNormals();
+  return g;
+}
+
+async function benchOne(grid, renderer, scene, camera, gl){
+  const geo=makeTerrainMesh(grid);
+  const mat=new THREE.MeshStandardMaterial({vertexColors:false,color:0x889988, roughness:0.82});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.receiveShadow=true;
+  scene.add(mesh);
+  // warmup
+  for(let i=0;i<5;i++) renderer.render(scene,camera);
+  const N=60;
+  const tRender=[], tRead=[], tFlip=[], tTotal=[];
+  const buf=new Uint8Array(BYTES);
+  for(let i=0;i<N;i++){
+    const a0=performance.now();
+    renderer.render(scene,camera);
+    const a1=performance.now();
+    gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+    const a2=performance.now();
+    for(let y=0;y<H;y++){
+      const sr=y*W, dr=(H-1-y)*W;
+      u32Dst.set(u32Src.subarray(sr,sr+W),dr);
+    }
+    const a3=performance.now();
+    tRender.push(a1-a0); tRead.push(a2-a1); tFlip.push(a3-a2); tTotal.push(a3-a0);
+  }
+  scene.remove(mesh); geo.dispose(); mat.dispose();
+  const p50=a=>{const s=[...a].sort((x,y)=>x-y);return s[Math.floor(s.length*0.5)]};
+  const p95=a=>{const s=[...a].sort((x,y)=>x-y);return s[Math.floor(s.length*0.95)]};
+  return {grid, verts:grid*grid, render:p50(tRender), read:p50(tRead), flip:p50(tFlip), total:p50(tTotal), total95:p95(tTotal)};
+}
+
+document.getElementById('run').onclick=async()=>{
+  const btn=document.getElementById('run'); btn.disabled=true;
+  const status=document.getElementById('status');
+  const log=document.getElementById('log');
+  const tbody=document.querySelector('#out tbody');
+  tbody.innerHTML=''; log.textContent='';
+  status.textContent='Creating offscreen 1920×1080 renderer (preserveDrawingBuffer:true)…';
+  const canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
+  // keep canvas offscreen but attached so context is real
+  canvas.style.cssText='position:fixed;left:-9999px;top:-9999px';
+  document.body.appendChild(canvas);
+  const renderer=new THREE.WebGLRenderer({canvas, antialias:true, preserveDrawingBuffer:true, powerPreference:'high-performance'});
+  renderer.setSize(W,H,false); renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  const scene=new THREE.Scene(); scene.background=new THREE.Color('#94b5c7');
+  const camera=new THREE.PerspectiveCamera(40,16/9,2,9000); camera.position.set(0,480,760); camera.lookAt(0,70,0);
+  const dir=new THREE.DirectionalLight(0xffffff,3.2); dir.position.set(-560,920,460); dir.castShadow=true;
+  dir.shadow.mapSize.set(2048,2048); scene.add(dir); scene.add(new THREE.HemisphereLight(0xf2f8ff,0x2d3b32,2.2));
+  const gl=renderer.getContext();
+  const grids=[256,512,1024];
+  document.getElementById('out').style.display='table';
+  for(const g of grids){
+    status.textContent=`Benching ${g}×${g}…`;
+    log.textContent+=`bench ${g}×${g}…\n`;
+    const r=await benchOne(g,renderer,scene,camera,gl);
+    const budget=20.0, cls=r.total95<16?'ok':r.total95<20?'warn':'bad';
+    const verdict=r.total95<16?'OK':r.total95<20?'TIGHT':'OVER (needs LOD)';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${g}×${g}</td><td>${r.verts.toLocaleString()}</td><td>${r.render.toFixed(2)} ms</td><td>${r.read.toFixed(2)} ms</td><td>${r.flip.toFixed(2)} ms</td><td>${r.total.toFixed(2)} ms</td><td class="${cls}">${r.total95.toFixed(2)} ms</td><td class="${cls}">${verdict}</td>`;
+    tbody.appendChild(tr);
+    log.textContent+=`  render ${r.render.toFixed(2)}  read ${r.read.toFixed(2)}  flip ${r.flip.toFixed(2)}  total p50 ${r.total.toFixed(2)}  p95 ${r.total95.toFixed(2)} → ${verdict} (budget 20ms)\n`;
+    await new Promise(r=>setTimeout(r,80));
+  }
+  status.textContent='Done. For ticket #5: verdict is p95 <16ms = OK, 16–20ms = tight, >20ms = needs LOD. On M2 expect 512² p95 ≈ 8–12ms.';
+  log.textContent+=`\nNote: readPixels stall dominates. If 512² p95 <16ms, no LOD needed. See docs/research/vertex-budget.md\n`;
+  btn.disabled=false;
+  // keep renderer alive for inspection; dispose on second click is fine
+};
+</script>
+</body>
+</html>
