@@ -22,6 +22,15 @@ export class SettingsManager {
       const saved = localStorage.getItem('giir_settings_v1');
       if (saved) {
         this.settings = { ...this.defaultSettings, ...JSON.parse(saved) };
+        // FIX _TEOO suffix: migrazione da vecchio valore con suffisso test → base
+        if (this.settings.ndiSourceName && this.settings.ndiSourceName !== this.defaultSettings.ndiSourceName) {
+          const base = this.defaultSettings.ndiSourceName;
+          // se contiene _TEOO o comunque diverso dal base, normalizza a base (evita 2 sorgenti con stesso prefisso)
+          if (this.settings.ndiSourceName.includes('_TEOO') || this.settings.ndiSourceName === 'GIIR-3D-PROGRAM_TEOO') {
+            this.settings.ndiSourceName = base;
+            try { localStorage.setItem('giir_settings_v1', JSON.stringify(this.settings)); } catch (e2) {}
+          }
+        }
       }
     } catch (e) {}
     this.applySettingsToDOM();

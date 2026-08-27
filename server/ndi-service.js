@@ -193,8 +193,16 @@ wss.on('connection', (ws) => {
         if (data.type === 'config') {
           if (data.fps) currentFps = data.fps;
           if (data.sourceName) {
+            // Normalizza _TEOO suffix (vecchio test) → base, evita 2 sorgenti
+            let reqName = data.sourceName;
+            if (reqName.includes('_TEOO')) reqName = reqName.replace(/_TEOO.*$/, '');
+            if (reqName !== data.sourceName) {
+              console.log(`[NDI] Normalizzo sourceName "${data.sourceName}" → "${reqName}"`);
+              data.sourceName = reqName;
+            }
             const reqNorm = normalizeName(data.sourceName);
             const curNorm = normalizeName(safeSourceName());
+            // Evita re-init se già su base (TEOO già normalizzato)
             if (!ndiSender || reqNorm !== curNorm) {
               await initNdi(data.sourceName);
             }
