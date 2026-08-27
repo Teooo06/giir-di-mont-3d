@@ -766,6 +766,39 @@ function frame() {
     if (t >= 1) { camTween = null; targetPos.copy(controls.target); }
   }
 
+  // P7 Gamepad — left stick orbit, right stick zoom, buttons 0-3 → scene 1-4 (deterministico, no WS mobile ancora)
+  const gp = (navigator.getGamepads && navigator.getGamepads()[0]) || null;
+  if (gp && gp.connected) {
+    const dead = 0.15;
+    const lx = Math.abs(gp.axes[0] || 0) > dead ? gp.axes[0] : 0;
+    const ly = Math.abs(gp.axes[1] || 0) > dead ? gp.axes[1] : 0;
+    const ry = Math.abs(gp.axes[3] || 0) > dead ? gp.axes[3] : 0;
+    if ((lx || ly) && !camTween) {
+      const rotSpeed = 1.4 * dt;
+      const offset = camera.position.clone().sub(controls.target);
+      const spherical = new THREE.Spherical().setFromVector3(offset);
+      spherical.theta -= lx * rotSpeed;
+      spherical.phi = THREE.MathUtils.clamp(spherical.phi - ly * rotSpeed, 0.15, Math.PI * 0.485);
+      offset.setFromSpherical(spherical);
+      camera.position.copy(controls.target).add(offset);
+    }
+    if (ry && !camTween) {
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      camera.position.addScaledVector(dir, -ry * 450 * dt);
+      const dist = camera.position.distanceTo(controls.target);
+      if (dist < 40 || dist > 2600) {
+        // clamp
+        const clamped = THREE.MathUtils.clamp(dist, 40, 2600);
+        camera.position.copy(controls.target).add(dir.multiplyScalar(clamped));
+      }
+    }
+    // D-pad / face buttons → scene (edge trigger)
+    if (gp.buttons[0]?.pressed) setScene('overview');
+    if (gp.buttons[1]?.pressed) setScene('runner');
+    if (gp.buttons[2]?.pressed) setScene('checkpoint');
+    if (gp.buttons[3]?.pressed) setScene('topdown');
+  }
+
   controls.update();
 
   // Scala elementi 3D inversamente allo zoom (più vicino = più piccoli) — solo scala locale, mai posizione
