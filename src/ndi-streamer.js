@@ -32,9 +32,23 @@ export class NdiStreamer {
     this.frameInterval = 1000 / this.targetFps;
 
     // --- NUOVA STRATEGIA: renderer NDI dedicato, isolato dal canvas browser ---
-    // Un canvas hidden 1920x1080 con il suo WebGL context, così viewport e pixelRatio
-    // del browser non interferiscono mai con il Program.
+    // Singleton + HMR guard: evita 2 NdiStreamer (2 canvas/2 WS) che causano 2 mappe alternate in NDI.
+    // HMR di Vite ricrea main.js; senza cleanup restano 2 WS attive → server vede 2 frame alterni.
+    if (typeof window !== 'undefined' && window.__giirNdiStreamer && window.__giirNdiStreamer !== this) {
+      try { window.__giirNdiStreamer.ws?.close(); } catch (e) {}
+      try { window.__giirNdiStreamer.ndiCanvas?.remove(); } catch (e) {}
+      try { window.__giirNdiStreamer.ndiRenderer?.dispose(); } catch (e) {}
+    }
+    if (typeof window !== 'undefined') window.__giirNdiStreamer = this;
+
+    // Rimuovi eventuale canvas residuo da HMR precedente
+    if (typeof document !== 'undefined') {
+      const old = document.getElementById('__giir_ndi_canvas');
+      if (old) old.remove();
+    }
+
     this.ndiCanvas = document.createElement('canvas');
+    this.ndiCanvas.id = '__giir_ndi_canvas';
     this.ndiCanvas.width = this.width;
     this.ndiCanvas.height = this.height;
     this.ndiCanvas.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1920px;height:1080px;pointer-events:none;opacity:0;';

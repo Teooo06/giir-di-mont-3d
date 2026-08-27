@@ -157,7 +157,11 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws) => {
-  console.log('[NDI-WS] 🔌 Client 3D connesso al server NDI');
+  if (activeWsClient && activeWsClient.readyState === activeWsClient.OPEN) {
+    console.log('[NDI-WS] ⚠️ Client già attivo — nuovo client diventa attivo, vecchio ignorato');
+  } else {
+    console.log('[NDI-WS] 🔌 Client 3D connesso al server NDI');
+  }
   activeWsClient = ws;
   ws.binaryType = 'nodebuffer';
 
@@ -201,6 +205,8 @@ wss.on('connection', (ws) => {
     }
 
     if (!ndiSender) return;
+    // FIX doppio source: ignora frame da client non attivo (2 tab / HMR)
+    if (ws !== activeWsClient) return;
 
     try {
       frameCount++;
@@ -233,8 +239,10 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     console.log('[NDI-WS] Client 3D disconnesso');
     clearInterval(statusInterval);
-    isLiveClientStreaming = false;
-    if (activeWsClient === ws) activeWsClient = null;
+    if (activeWsClient === ws) {
+      isLiveClientStreaming = false;
+      activeWsClient = null;
+    }
   });
 });
 
