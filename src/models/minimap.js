@@ -24,11 +24,11 @@ export class MiniMap {
     this.sprite.layers.set(1); // NDI only
     this.sprite.scale.set(5.2, 5.2, 1); // ~256px a 1920x1080, angolo alto-destra
 
-    // HTML overlay per browser (stesso canvas clonato) — spostata da top:24 per non coprire Regia Scene
+    // HTML overlay per browser — spostata in basso-destra per non coprire Regia Scene (side-panel right:24 top:76)
     this.htmlCanvas = document.createElement('canvas');
     this.htmlCanvas.width = this.size;
     this.htmlCanvas.height = this.size;
-    this.htmlCanvas.style.cssText = 'position:fixed;top:140px;right:24px;width:180px;height:180px;border:2px solid rgba(164,199,54,0.9);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.6);z-index:12;pointer-events:none;';
+    this.htmlCanvas.style.cssText = 'position:fixed;bottom:24px;right:24px;top:auto;width:180px;height:180px;border:2px solid rgba(164,199,54,0.9);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.6);z-index:12;pointer-events:none;';
     this.htmlCanvas.className = 'minimap hud';
     this.htmlCtx = this.htmlCanvas.getContext('2d');
 

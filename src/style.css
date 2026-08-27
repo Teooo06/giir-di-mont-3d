@@ -744,9 +744,15 @@ body.clean .ndi-frame { display: none; }
 body.clean .hud { display: none; }
 body.clean .clean-notice { display: block; }
 
+@media (max-width: 1350px) {
+  /* FIX overlap: Personalizza Stile coperto da NDI: TEOOS-MACBOOK — sposta NDI sotto nav-tabs su schermi medi */
+  .ndi-bar { top: 68px; right: 24px; }
+  .side-panel { top: 118px; }
+  /* minimap già spostata in basso-destra, evita ulteriore overlap */
+}
 @media (max-width: 900px) {
   .elevation-hud { display: none; }
   .nav-tabs { left: 24px; transform: none; }
-  .side-panel { width: calc(100% - 48px); }
+  .side-panel { width: calc(100% - 48px); top: 118px; }
   .operator { width: calc(100% - 48px); }
 }
