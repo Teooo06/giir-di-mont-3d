@@ -7,6 +7,7 @@ import { SettingsManager } from './settings-manager.js';
 import { ElevationProfile } from './elevation-profile.js';
 import { createArch, placeArchAtRoute } from './models/arch.js';
 import { createLowerThirdSprite, createLowerThirdHTML } from './models/lowerthird.js';
+import { MiniMap } from './models/minimap.js';
 import './style.css';
 
 // ----------------------------------------------------
@@ -183,6 +184,8 @@ scene.add(checkpointGroup);
 let archGroup = null; // P8 arco gonfiabile
 let lowerThirdSprite = null;
 let lowerThirdHTML = null;
+const miniMap = new MiniMap({ size: 256 });
+miniMap.attachToDOM();
 
 const athleteMeshes = new Map();
 
@@ -371,6 +374,15 @@ function rebuildTrack3D() {
   if (elevationProfile && typeof elevationProfile.setTrackData === 'function') {
     elevationProfile.setTrackData(rawTrackPoints, raceManager.checkpoints);
   }
+
+  // GFX-2 Mini-map PIP — traccia + checkpoint worldPos
+  if (!scene.getObjectById(miniMap.sprite.id)) scene.add(miniMap.sprite);
+  const cpWorld = raceManager.checkpoints.map(cp => {
+    const ratio = Math.min(0.999, Math.max(0.001, cp.km / raceManager.totalKm));
+    const pt = routeCurve.getPointAt(ratio);
+    return { ...cp, worldPos: pt.clone() };
+  });
+  miniMap.setTrackData(worldPoints, cpWorld);
 }
 
 function parseGpxAndBuild(xmlText, filename = 'giir-di-mont-32-km.gpx') {
@@ -759,6 +771,7 @@ function frame() {
       }
       const ratio = Math.min(0.999, Math.max(0.001, ath.km / raceManager.totalKm));
       const pt = routeCurve.getPointAt(ratio);
+      ath.worldPos = pt.clone(); // per mini-map GFX-2
 
       const entry = getOrCreateAthleteMesh(ath);
       entry.sprite.position.copy(pt).add(new THREE.Vector3(0, 14 + Math.sin(performance.now() * 0.005) * 1.2, 0));
@@ -853,6 +866,13 @@ function frame() {
     lowerThirdSprite.quaternion.copy(programCamera.quaternion);
   }
 
+  // GFX-2 Mini-map PIP — aggiorna con atleti e posiziona sprite NDI
+  if (routeCurve && miniMap) {
+    const st = raceManager.getState();
+    miniMap.render(st.athletes);
+    miniMap.updateSpritePosition(programCamera);
+  }
+
   renderer.render(scene, camera);
   updateLabels();
 
@@ -888,10 +908,15 @@ addEventListener('resize', () => {
   updateNdiFrameBox();
 });
 updateNdiFrameBox();
-// Toggle riquadro con tasto N
+// Toggle riquadro con tasto N, mini-map con M
 addEventListener('keydown', (e) => {
   if ((e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
   if (e.key.toLowerCase() === 'n') {
     document.querySelector('#ndi-frame')?.classList.toggle('hidden');
+  }
+  if (e.key.toLowerCase() === 'm') {
+    const show = miniMap.htmlCanvas.style.display !== 'none';
+    miniMap.htmlCanvas.style.display = show ? 'none' : 'block';
+    miniMap.sprite.visible = !show;
   }
 });
