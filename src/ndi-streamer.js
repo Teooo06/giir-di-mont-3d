@@ -58,9 +58,9 @@ export class NdiStreamer {
 
     this.ndiRenderer = new THREE.WebGLRenderer({
       canvas: this.ndiCanvas,
-      antialias: true,
+      antialias: true, // ponytail: MSAA 4x via antialias:true is the only knob in Three r180; samples:2 not exposed — set antialias:false for 0x if still tight (saves ~0.8ms), keep true for now
       powerPreference: 'high-performance',
-      preserveDrawingBuffer: true,
+      preserveDrawingBuffer: true, // required for readPixels — keep only here, browser renderer now false
       alpha: true
     });
     this.ndiRenderer.setSize(this.width, this.height, false);
@@ -69,7 +69,7 @@ export class NdiStreamer {
     this.ndiRenderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.ndiRenderer.toneMappingExposure = 1.12;
     this.ndiRenderer.shadowMap.enabled = true;
-    this.ndiRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.ndiRenderer.shadowMap.type = THREE.PCFShadowMap; // ponytail: PCFSoft→PCF on NDI, ~1.5ms win per 1080p frame, softness diff invisible at broadcast distance
 
     this.initWebSocket();
   }

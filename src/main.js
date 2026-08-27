@@ -29,12 +29,12 @@ camera.layers.set(0);
 programCamera.layers.set(0);
 programCamera.layers.enable(1);
 
-// Renderer WebGL
+// Renderer WebGL — ponytail: preserveDrawingBuffer false on browser (only NDI renderer needs it for readPixels), saves ~0.5-1ms composite
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: true,
   powerPreference: 'high-performance',
-  preserveDrawingBuffer: true
+  preserveDrawingBuffer: false
 });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -60,7 +60,7 @@ scene.add(hemiLight);
 const sun = new THREE.DirectionalLight('#ffffff', 3.2);
 sun.position.set(-560, 920, 460);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1024, 1024); // ponytail: 2048→1024, 4x memory/BW win, visual diff negligible at 760m dist; revert to 2048 if shadows look soft on close-ups
 sun.shadow.camera.left = sun.shadow.camera.bottom = -950;
 sun.shadow.camera.right = sun.shadow.camera.top = 950;
 sun.shadow.camera.near = 100;
@@ -129,7 +129,7 @@ function generateAlpineForest() {
     treesMesh.geometry.dispose();
   }
 
-  const count = 1400;
+  const count = 800; // ponytail: 1400→800, single InstancedMesh draw call unchanged, 43% fewer instance updates; add LOD billboard if still tight
   const treeGeo = new THREE.ConeGeometry(2.4, 11, 5);
   treeGeo.translate(0, 5.5, 0); // Base a Y=0
   const treeMat = new THREE.MeshStandardMaterial({
@@ -327,7 +327,7 @@ function rebuildTrack3D() {
 
   routeCurve = new THREE.CatmullRomCurve3(worldPoints, false, 'centripetal');
 
-  const tubeGeo = new THREE.TubeGeometry(routeCurve, 800, 1.1, 7, false);
+  const tubeGeo = new THREE.TubeGeometry(routeCurve, 400, 1.1, 7, false); // ponytail: 800→400 segments, ~50% fewer verts, visual diff negligible at broadcast distance; threejs-geometry: choose appropriate segment counts
   routeLine = new THREE.Mesh(
     tubeGeo,
     new THREE.MeshStandardMaterial({
@@ -369,7 +369,7 @@ function parseGpxAndBuild(xmlText, filename = 'giir-di-mont-32-km.gpx') {
   const trackStatus = document.querySelector('#track-status');
   if (trackStatus) trackStatus.textContent = `${filename} (${rawTrackPoints.length} punti)`;
   
-  setScene('overview');
+  setScene('overview', { instant: true });
 }
 
 // Inizializza Terreno e GPX all'avvio
@@ -409,40 +409,30 @@ let activeScene = 'overview';
 let isAutoPlaying = true;
 const targetPos = new THREE.Vector3();
 
-function setScene(sceneName) {
-  activeScene = sceneName;
-  document.querySelectorAll('[data-scene]').forEach(b => {
-    b.classList.toggle('active', b.dataset.scene === sceneName);
-  });
-
-  const modeEl = document.querySelector('#mode');
+// ponytail: native lerp + easeInOutCubic instead of GSAP — stdlib Math, ~40 lines, no new dep; upgrade to GSAP/Bezier if director wants spline easing
+let camTween = null; // { startPos, endPos, startTarget, endTarget, elapsed, duration }
+function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+function getSceneParams(name) {
   const selectedAthlete = raceManager.getSelectedAthlete();
   const ratio = selectedAthlete ? (selectedAthlete.km / raceManager.totalKm) : 0.45;
-
-  if (sceneName === 'overview') {
-    camera.position.set(0, 480, 760);
-    controls.target.set(0, 70, 0);
-    if (modeEl) modeEl.textContent = 'PANORAMICA 3D VALLE PREMANA';
-  } else if (sceneName === 'runner' && routeCurve) {
-    const p = routeCurve.getPointAt(ratio);
-    camera.position.copy(p).add(new THREE.Vector3(95, 55, 115));
-    controls.target.copy(p);
-    if (modeEl) modeEl.textContent = `INSEGUIMENTO DRONE: ${selectedAthlete?.name || 'Leader'}`;
-  } else if (sceneName === 'checkpoint' && routeCurve) {
-    const p = routeCurve.getPointAt(14.5 / 32.0);
-    camera.position.copy(p).add(new THREE.Vector3(-80, 50, 95));
-    controls.target.copy(p);
-    if (modeEl) modeEl.textContent = 'INQUADRATURA: BOCCHETTA DI LAREC (2070m)';
-  } else if (sceneName === 'pizzo' && routeCurve) {
-    const p = routeCurve.getPointAt(27.5 / 32.0);
-    camera.position.copy(p).add(new THREE.Vector3(85, 65, -75));
-    controls.target.copy(p);
-    if (modeEl) modeEl.textContent = 'INQUADRATURA: ALPE DELEGUAGGIO';
-  } else if (sceneName === 'topdown') {
-    camera.position.set(0, 900, 10);
-    controls.target.set(0, 40, 0);
-    if (modeEl) modeEl.textContent = 'VISTA SATELLITARE ZENITH';
-  }
+  if (name === 'overview') return { pos: new THREE.Vector3(0, 480, 760), target: new THREE.Vector3(0, 70, 0), label: 'PANORAMICA 3D VALLE PREMANA' };
+  if (name === 'runner' && routeCurve) { const p = routeCurve.getPointAt(ratio); return { pos: p.clone().add(new THREE.Vector3(95, 55, 115)), target: p.clone(), label: `INSEGUIMENTO DRONE: ${selectedAthlete?.name || 'Leader'}` }; }
+  if (name === 'checkpoint' && routeCurve) { const p = routeCurve.getPointAt(14.5 / 32.0); return { pos: p.clone().add(new THREE.Vector3(-80, 50, 95)), target: p.clone(), label: 'INQUADRATURA: BOCCHETTA DI LAREC (2070m)' }; }
+  if (name === 'pizzo' && routeCurve) { const p = routeCurve.getPointAt(27.5 / 32.0); return { pos: p.clone().add(new THREE.Vector3(85, 65, -75)), target: p.clone(), label: 'INQUADRATURA: ALPE DELEGUAGGIO' }; }
+  if (name === 'topdown') return { pos: new THREE.Vector3(0, 900, 10), target: new THREE.Vector3(0, 40, 0), label: 'VISTA SATELLITARE ZENITH' };
+  return null;
+}
+function setScene(sceneName, opts = {}) {
+  const { instant = false, duration = 1.8 } = opts; // ponytail: calibration knob — duration 1.8s, tweak per scene if needed
+  activeScene = sceneName;
+  document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === sceneName));
+  const params = getSceneParams(sceneName);
+  if (!params) return;
+  const modeEl = document.querySelector('#mode');
+  if (modeEl) modeEl.textContent = params.label;
+  if (instant || !routeCurve) { camera.position.copy(params.pos); controls.target.copy(params.target); targetPos.copy(params.target); camTween = null; return; }
+  // start tween from current (mid-flight safe) to target — 3d-games: smooth following via lerp, camera feel
+  camTween = { startPos: camera.position.clone(), endPos: params.pos.clone(), startTarget: controls.target.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
 }
 
 document.querySelectorAll('[data-scene]').forEach(b => {
@@ -741,13 +731,23 @@ function frame() {
     const selectedAthlete = raceManager.getSelectedAthlete();
     if (selectedAthlete) {
       updateRiderCard();
-      if (activeScene === 'runner') {
+      if (activeScene === 'runner' && !camTween) {
         const ratio = Math.min(0.999, Math.max(0.001, selectedAthlete.km / raceManager.totalKm));
         const pt = routeCurve.getPointAt(ratio);
         targetPos.lerp(pt, 0.04);
         controls.target.copy(targetPos);
       }
     }
+  }
+
+  // cinematic tween — 3d-games camera feel: smooth lerp + easeInOutCubic, no external lib
+  if (camTween) {
+    camTween.elapsed += dt;
+    let t = Math.min(1, camTween.elapsed / camTween.duration);
+    const e = easeInOutCubic(t);
+    camera.position.lerpVectors(camTween.startPos, camTween.endPos, e);
+    controls.target.lerpVectors(camTween.startTarget, camTween.endTarget, e);
+    if (t >= 1) { camTween = null; targetPos.copy(controls.target); }
   }
 
   controls.update();
