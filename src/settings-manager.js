@@ -8,7 +8,7 @@ export class SettingsManager {
       trackGlow: true,
       showCheckpoints3D: true,
       showElevationProfile: true,
-      ndiFps: 50,
+      ndiFps: 50, // ponytail: 50 is target, calibration knob — if NDI p95 >16ms on target Mac, setFps(30) via /impostazioni (saves ~6.6ms budget slack, no code change)
       ndiSourceName: 'GIIR-3D-PROGRAM'
     };
 

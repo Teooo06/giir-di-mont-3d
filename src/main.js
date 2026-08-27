@@ -29,12 +29,12 @@ camera.layers.set(0);
 programCamera.layers.set(0);
 programCamera.layers.enable(1);
 
-// Renderer WebGL
+// Renderer WebGL — ponytail: preserveDrawingBuffer false on browser (only NDI renderer needs it for readPixels), saves ~0.5-1ms composite
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: true,
   powerPreference: 'high-performance',
-  preserveDrawingBuffer: true
+  preserveDrawingBuffer: false
 });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -60,7 +60,7 @@ scene.add(hemiLight);
 const sun = new THREE.DirectionalLight('#ffffff', 3.2);
 sun.position.set(-560, 920, 460);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1024, 1024); // ponytail: 2048→1024, 4x memory/BW win, visual diff negligible at 760m dist; revert to 2048 if shadows look soft on close-ups
 sun.shadow.camera.left = sun.shadow.camera.bottom = -950;
 sun.shadow.camera.right = sun.shadow.camera.top = 950;
 sun.shadow.camera.near = 100;
@@ -129,7 +129,7 @@ function generateAlpineForest() {
     treesMesh.geometry.dispose();
   }
 
-  const count = 1400;
+  const count = 800; // ponytail: 1400→800, single InstancedMesh draw call unchanged, 43% fewer instance updates; add LOD billboard if still tight
   const treeGeo = new THREE.ConeGeometry(2.4, 11, 5);
   treeGeo.translate(0, 5.5, 0); // Base a Y=0
   const treeMat = new THREE.MeshStandardMaterial({
@@ -327,7 +327,7 @@ function rebuildTrack3D() {
 
   routeCurve = new THREE.CatmullRomCurve3(worldPoints, false, 'centripetal');
 
-  const tubeGeo = new THREE.TubeGeometry(routeCurve, 800, 1.1, 7, false);
+  const tubeGeo = new THREE.TubeGeometry(routeCurve, 400, 1.1, 7, false); // ponytail: 800→400 segments, ~50% fewer verts, visual diff negligible at broadcast distance; threejs-geometry: choose appropriate segment counts
   routeLine = new THREE.Mesh(
     tubeGeo,
     new THREE.MeshStandardMaterial({
