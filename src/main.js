@@ -183,6 +183,20 @@ let archGroup = null; // P8 arco gonfiabile
 const miniMap = new MiniMap({ size: 256 });
 miniMap.attachToDOM();
 
+// DEBUG NDI preview — tasto D per mostrare cosa vede il renderer NDI dedicato
+let ndiDebugCanvas = null;
+let ndiDebugCtx = null;
+(function initNdiDebug() {
+  ndiDebugCanvas = document.createElement('canvas');
+  ndiDebugCanvas.id = 'ndi-debug-preview';
+  ndiDebugCanvas.width = 384;
+  ndiDebugCanvas.height = 216;
+  ndiDebugCanvas.style.cssText = 'position:fixed;bottom:24px;left:360px;width:320px;height:180px;border:2px solid #ff3b30;border-radius:8px;z-index:20;display:none;box-shadow:0 4px 24px rgba(0,0,0,0.6);';
+  ndiDebugCanvas.title = 'NDI Debug Preview (tasto D per toggle, S per save PNG)';
+  document.querySelector('#app')?.append(ndiDebugCanvas);
+  ndiDebugCtx = ndiDebugCanvas.getContext('2d');
+})();
+
 const athleteMeshes = new Map();
 
 function markerTexture(number, color = '#dff654') {
@@ -271,7 +285,8 @@ function createCheckpointLabelSprite(name, km, themeColor, showKm = true) {
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: true });
   const sprite = new THREE.Sprite(mat);
   sprite.layers.set(1); // solo NDI (browser usa HTML .label)
-  sprite.scale.set(62, 19.4, 1); // ingrandito per NDI 1080p30 più leggibile (era 48x15)
+  sprite.scale.set(62, 19.4, 1); // ingrandito per NDI 1080p50 più leggibile (era 48x15)
+  sprite.frustumCulled = false; // debug: assicurati sia sempre renderizzato, anche se fuori frustum per un frame
   return sprite;
 }
 
@@ -849,6 +864,10 @@ function frame() {
   updateLabels();
 
   ndiStreamer.captureAndSend(renderer, scene, programCamera);
+  // DEBUG NDI preview — copia canvas NDI su preview se visibile (tasto D)
+  if (ndiDebugCanvas && ndiDebugCanvas.style.display !== 'none' && ndiDebugCtx && ndiStreamer.ndiCanvas) {
+    try { ndiDebugCtx.drawImage(ndiStreamer.ndiCanvas, 0, 0, ndiDebugCanvas.width, ndiDebugCanvas.height); } catch (e) {}
+  }
 }
 
 frame();
@@ -890,5 +909,20 @@ addEventListener('keydown', (e) => {
     const show = miniMap.htmlCanvas.style.display !== 'none';
     miniMap.htmlCanvas.style.display = show ? 'none' : 'block';
     miniMap.sprite.visible = !show;
+  }
+  if (e.key.toLowerCase() === 'd') {
+    const isHidden = ndiDebugCanvas.style.display === 'none';
+    ndiDebugCanvas.style.display = isHidden ? 'block' : 'none';
+    console.log('[NDI DEBUG] Preview ' + (isHidden ? 'ON' : 'OFF') + ' — mostra cosa vede il renderer NDI');
+  }
+  if (e.key.toLowerCase() === 's') {
+    // Save NDI frame as PNG per verifica checkpoint testi
+    try {
+      const a = document.createElement('a');
+      a.download = `ndi-debug-${Date.now()}.png`;
+      a.href = ndiStreamer.ndiCanvas.toDataURL('image/png');
+      a.click();
+      console.log('[NDI DEBUG] Screenshot NDI salvato');
+    } catch (e) { console.error('[NDI DEBUG] Save failed', e); }
   }
 });
