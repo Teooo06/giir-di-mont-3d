@@ -16,6 +16,25 @@ let lastFpsTime = Date.now();
 let measuredFps = 0;
 let activeWsClient = null;
 let idleInterval = null;
+let isInitializing = false;
+let lastInitTime = 0;
+
+// Helper sicuri per NDI — evitano crash se sender è distrutto
+function safeSourceName() {
+  try { return ndiSender && typeof ndiSender.sourceName === 'function' ? ndiSender.sourceName() : NDI_SOURCE_NAME; } catch (e) { return NDI_SOURCE_NAME; }
+}
+function safeConnections() {
+  try { return ndiSender && typeof ndiSender.connections === 'function' ? ndiSender.connections() : 0; } catch (e) { return 0; }
+}
+function safeTally() {
+  try { return ndiSender && typeof ndiSender.tally === 'function' ? ndiSender.tally() : { onProgram: false, onPreview: false }; } catch (e) { return { onProgram: false, onPreview: false }; }
+}
+function normalizeName(name) {
+  // grandi antepone hostname: "HOST (NAME)" -> estraiamo NAME
+  if (!name) return '';
+  const m = name.match(/\(([^)]+)\)\s*$/);
+  return m ? m[1] : name;
+}
 
 // Crea un frame di standby broadcast (1920x1080 RGBA)
 function createStandbyBuffer() {
@@ -36,24 +55,55 @@ function createStandbyBuffer() {
 const standbyFrame = createStandbyBuffer();
 
 async function initNdi(sourceName = NDI_SOURCE_NAME) {
-  try {
-    if (ndiSender) {
-      try { ndiSender.destroy(); } catch (e) {}
+  // Debounce: evita re-init multipli in <2s o se già in corso
+  const now = Date.now();
+  if (isInitializing) {
+    console.log('[NDI] ⏳ Init già in corso, skip');
+    return false;
+  }
+  if (now - lastInitTime < 2000) {
+    // se chiamata troppo ravvicinata, verifica se serve davvero
+    const currentNorm = normalizeName(safeSourceName());
+    const reqNorm = normalizeName(sourceName);
+    if (currentNorm === reqNorm && ndiSender) {
+      return true;
     }
+  }
+  // Confronto normalizzato: se già attivo con stesso nome logico, non ricreare
+  if (ndiSender) {
+    const currentNorm = normalizeName(safeSourceName());
+    const reqNorm = normalizeName(sourceName);
+    if (currentNorm === reqNorm) {
+      return true;
+    }
+  }
+
+  isInitializing = true;
+  lastInitTime = now;
+  let oldSender = ndiSender;
+  ndiSender = null; // metti a null subito per evitare chiamate su sender distrutto
+  if (oldSender) {
+    try { oldSender.destroy(); } catch (e) {}
+    // piccola pausa per lasciare NDI SDK rilasciare risorse
+    await new Promise(r => setTimeout(r, 300));
+  }
+  try {
     console.log(`[NDI] 📡 Inizializzazione sorgente NDI: "${sourceName}"...`);
-    ndiSender = await grandi.send({
+    const newSender = await grandi.send({
       name: sourceName,
       clockVideo: false,
       clockAudio: false
     });
-    console.log(`[NDI] ✅ Sorgente NDI attiva sulla rete: ${ndiSender.sourceName()}`);
-
-    // Invia subito un frame per registrare il canale in rete
+    ndiSender = newSender;
+    console.log(`[NDI] ✅ Sorgente NDI attiva sulla rete: ${safeSourceName()}`);
     await sendStandbyFrame();
     startIdleLoop();
+    isInitializing = false;
     return true;
   } catch (err) {
     console.error('[NDI] ❌ Errore durante la creazione della sorgente NDI:', err);
+    ndiSender = null;
+    isInitializing = false;
     return false;
   }
 }
@@ -87,15 +137,13 @@ function startIdleLoop() {
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.url === '/status') {
-    const connections = ndiSender && typeof ndiSender.connections === 'function' ? ndiSender.connections() : 0;
-    const tally = ndiSender && typeof ndiSender.tally === 'function' ? ndiSender.tally() : { onProgram: false, onPreview: false };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      sourceName: ndiSender ? ndiSender.sourceName() : NDI_SOURCE_NAME,
+      sourceName: safeSourceName(),
       active: !!ndiSender,
       streaming: isLiveClientStreaming,
-      connections,
-      tally,
+      connections: safeConnections(),
+      tally: safeTally(),
       fps: measuredFps,
       width: WIDTH,
       height: HEIGHT
@@ -115,19 +163,19 @@ wss.on('connection', (ws) => {
 
   const sendStatus = () => {
     if (ws.readyState !== ws.OPEN) return;
-    const connections = ndiSender && typeof ndiSender.connections === 'function' ? ndiSender.connections() : 0;
-    const tally = ndiSender && typeof ndiSender.tally === 'function' ? ndiSender.tally() : { onProgram: false, onPreview: false };
-    ws.send(JSON.stringify({
-      type: 'ndi_status',
-      sourceName: ndiSender ? ndiSender.sourceName() : NDI_SOURCE_NAME,
-      active: !!ndiSender,
-      streaming: isLiveClientStreaming,
-      connections,
-      tally,
-      fps: measuredFps,
-      width: WIDTH,
-      height: HEIGHT
-    }));
+    try {
+      ws.send(JSON.stringify({
+        type: 'ndi_status',
+        sourceName: safeSourceName(),
+        active: !!ndiSender,
+        streaming: isLiveClientStreaming,
+        connections: safeConnections(),
+        tally: safeTally(),
+        fps: measuredFps,
+        width: WIDTH,
+        height: HEIGHT
+      }));
+    } catch (e) {}
   };
 
   sendStatus();
@@ -140,8 +188,12 @@ wss.on('connection', (ws) => {
         const data = JSON.parse(text);
         if (data.type === 'config') {
           if (data.fps) currentFps = data.fps;
-          if (data.sourceName && (!ndiSender || ndiSender.sourceName() !== data.sourceName)) {
-            await initNdi(data.sourceName);
+          if (data.sourceName) {
+            const reqNorm = normalizeName(data.sourceName);
+            const curNorm = normalizeName(safeSourceName());
+            if (!ndiSender || reqNorm !== curNorm) {
+              await initNdi(data.sourceName);
+            }
           }
         }
       } catch (e) {}
@@ -197,6 +249,14 @@ server.on('error', (err) => {
 server.listen(WS_PORT, async () => {
   console.log(`[NDI-Server] Bridge NDI attivo su ws://localhost:${WS_PORT}`);
   await initNdi();
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[NDI] ⚠️ Uncaught exception (non fatale):', err.message);
+  // non uscire, mantieni server attivo
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[NDI] ⚠️ Unhandled rejection:', err?.message || err);
 });
 
 process.on('SIGINT', () => {
