@@ -7,7 +7,7 @@ export class ElevationProfile {
     this.totalKm = 32.0;
     this.minEle = 760;
     this.maxEle = 2070;
-    this.accentColor = options.accentColor || '#dff654';
+    this.accentColor = options.accentColor || '#a4c736';
 
     if (this.container) {
       this.initDOM();
@@ -103,13 +103,20 @@ export class ElevationProfile {
       lineD += (i === 0 ? 'M ' : 'L ') + `${x.toFixed(1)},${y.toFixed(1)} `;
     }
 
-    // Checkpoints pins sull'SVG
+    // Checkpoints pins sull'SVG — P5b: mappa su dist reale cumulativa, non cp.km teorico, e usa ele del profilo
     let cpElements = '';
     this.checkpoints.forEach(cp => {
-      const x = getX(cp.km);
-      const y = getY(cp.ele || 1400);
+      // trova profilePoint più vicino a cp.km per dist/ele reali
+      let best = this.profilePoints[0];
+      let bestDiff = Math.abs(best.dist - cp.km);
+      for (let i = 1; i < this.profilePoints.length; i++) {
+        const d = Math.abs(this.profilePoints[i].dist - cp.km);
+        if (d < bestDiff) { bestDiff = d; best = this.profilePoints[i]; }
+      }
+      const x = getX(best.dist);
+      const y = getY(best.ele);
       cpElements += `
-        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="#fff" stroke="#dff654" stroke-width="2" />
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="#fff" stroke="${this.accentColor}" stroke-width="2" />
         <line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${height - paddingBottom}" stroke="rgba(255,255,255,0.15)" stroke-dasharray="2,2" />
       `;
     });
@@ -117,13 +124,13 @@ export class ElevationProfile {
     svg.innerHTML = `
       <defs>
         <linearGradient id="profileGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="var(--accent-neon, #dff654)" stop-opacity="0.55" />
-          <stop offset="60%" stop-color="var(--accent-neon, #dff654)" stop-opacity="0.15" />
-          <stop offset="100%" stop-color="var(--accent-neon, #dff654)" stop-opacity="0.0" />
+          <stop offset="0%" stop-color="var(--accent-neon, #a4c736)" stop-opacity="0.55" />
+          <stop offset="60%" stop-color="var(--accent-neon, #a4c736)" stop-opacity="0.15" />
+          <stop offset="100%" stop-color="var(--accent-neon, #a4c736)" stop-opacity="0.0" />
         </linearGradient>
       </defs>
       <path d="${pathD}" fill="url(#profileGradient)" />
-      <path d="${lineD}" fill="none" stroke="var(--accent-neon, #dff654)" stroke-width="2.5" />
+      <path d="${lineD}" fill="none" stroke="var(--accent-neon, #a4c736)" stroke-width="2.5" />
       ${cpElements}
     `;
   }
