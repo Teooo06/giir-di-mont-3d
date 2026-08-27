@@ -365,9 +365,10 @@ function rebuildTrack3D() {
     scene.remove(archGroup);
     archGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
   }
-  archGroup = createArch({ height: 10, width: 12, tubeRadius: 1.1, color: '#ff1a1a' });
+  archGroup = createArch({ height: 7, width: 8, tubeRadius: 1.6, color: '#ff1a1a' });
   const archRatio = Math.min(0.999, Math.max(0.001, 14.5 / raceManager.totalKm));
   placeArchAtRoute(archGroup, routeCurve, archRatio, terrainManager);
+  archGroup.rotation.y += Math.PI / 2; // ruota 90° come richiesto: ora segue costa montagna e passa sotto tracciato
   scene.add(archGroup);
 
   if (elevationProfile && typeof elevationProfile.setTrackData === 'function') {
