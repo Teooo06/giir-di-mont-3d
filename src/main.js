@@ -690,7 +690,7 @@ function updateNdiHud(status) {
   }
 
   if (fps) {
-    fps.textContent = status.streaming && status.fps ? `⏱️ ${status.fps} FPS` : '⏱️ 30 FPS';
+    fps.textContent = status.streaming && status.fps ? `⏱️ ${status.fps} FPS` : '⏱️ 50 FPS';
   }
 }
 

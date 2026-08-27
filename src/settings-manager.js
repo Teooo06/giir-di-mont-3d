@@ -8,7 +8,7 @@ export class SettingsManager {
       trackGlow: true,
       showCheckpoints3D: true,
       showElevationProfile: true,
-      ndiFps: 30, // ottimizzazione wifi: 30fps default (era 50) — dimezza banda NDI, ~12ms budget vs 20ms, più fluido su wifi
+      ndiFps: 50, // regia 50fps (25/50) — richiesto, 30 causava ritardo decoding
       ndiSourceName: 'GIIR-3D-PROGRAM'
     };
 
@@ -36,9 +36,9 @@ export class SettingsManager {
           this.settings.themeColor = this.defaultSettings.themeColor;
           try { localStorage.setItem('giir_settings_v1', JSON.stringify(this.settings)); } catch (e2) {}
         }
-        // MIGRAZIONE fps: 50→30 default per wifi/leggerezza
-        if (this.settings.ndiFps === 50) {
-          this.settings.ndiFps = 30;
+        // MIGRAZIONE fps: 30→50 per regia 25/50 (era 30 per wifi, ora 50 richiesto)
+        if (this.settings.ndiFps === 30) {
+          this.settings.ndiFps = 50;
           try { localStorage.setItem('giir_settings_v1', JSON.stringify(this.settings)); } catch (e2) {}
         }
       }

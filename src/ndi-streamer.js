@@ -5,7 +5,7 @@ export class NdiStreamer {
     this.wsUrl = options.wsUrl || `ws://${window.location.hostname || 'localhost'}:9998`;
     this.width = options.width || 1920;
     this.height = options.height || 1080;
-    this.targetFps = options.fps || 30;
+    this.targetFps = options.fps || 50;
     this.sourceName = options.sourceName || 'GIIR-3D-PROGRAM';
     this.enabled = true;
 
