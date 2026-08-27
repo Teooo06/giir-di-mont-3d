@@ -6,7 +6,6 @@ import { RaceManager } from './race-manager.js';
 import { SettingsManager } from './settings-manager.js';
 import { ElevationProfile } from './elevation-profile.js';
 import { createArch, placeArchAtRoute } from './models/arch.js';
-import { createLowerThirdSprite, createLowerThirdHTML } from './models/lowerthird.js';
 import { MiniMap } from './models/minimap.js';
 import './style.css';
 
@@ -99,7 +98,6 @@ const raceManager = new RaceManager({
     renderAthletesList();
     renderSplitsEditor();
     updateRiderCard();
-    updateLowerThird();
   }
 });
 
@@ -182,8 +180,6 @@ let labels = [];
 const checkpointGroup = new THREE.Group();
 scene.add(checkpointGroup);
 let archGroup = null; // P8 arco gonfiabile
-let lowerThirdSprite = null;
-let lowerThirdHTML = null;
 const miniMap = new MiniMap({ size: 256 });
 miniMap.attachToDOM();
 
@@ -593,22 +589,6 @@ function updateRiderCard() {
   }
 }
 
-function updateLowerThird() {
-  const athlete = raceManager.getSelectedAthlete();
-  if (!athlete) return;
-  if (lowerThirdHTML) lowerThirdHTML.remove();
-  lowerThirdHTML = createLowerThirdHTML(athlete);
-  document.querySelector('#app')?.append(lowerThirdHTML);
-  if (lowerThirdSprite) {
-    scene.remove(lowerThirdSprite);
-    if (lowerThirdSprite.material.map) lowerThirdSprite.material.map.dispose();
-    lowerThirdSprite.material.dispose();
-  }
-  const { sprite } = createLowerThirdSprite(athlete, settingsManager.settings.themeColor);
-  lowerThirdSprite = sprite;
-  scene.add(lowerThirdSprite);
-}
-
 const kmSlider = document.querySelector('#athlete-km-slider');
 if (kmSlider) {
   kmSlider.addEventListener('input', (e) => {
@@ -750,7 +730,6 @@ function updateLabels() {
 renderAthletesList();
 renderSplitsEditor();
 updateRiderCard();
-updateLowerThird();
 
 // ----------------------------------------------------
 // 9. RENDER LOOP PRINCIPALE
@@ -852,19 +831,6 @@ function frame() {
   programCamera.copy(camera);
   programCamera.aspect = 16 / 9;
   programCamera.updateProjectionMatrix();
-
-  // GFX-1 Lower-third NDI overlay — screen-space davanti a programCamera (layer 1)
-  if (lowerThirdSprite) {
-    const dir = new THREE.Vector3();
-    programCamera.getWorldDirection(dir);
-    const right = new THREE.Vector3().crossVectors(dir, programCamera.up).normalize();
-    const up = new THREE.Vector3().crossVectors(right, dir).normalize();
-    lowerThirdSprite.position.copy(programCamera.position)
-      .add(dir.clone().multiplyScalar(9))
-      .add(right.clone().multiplyScalar(-5.2))
-      .add(up.clone().multiplyScalar(-3.4));
-    lowerThirdSprite.quaternion.copy(programCamera.quaternion);
-  }
 
   // GFX-2 Mini-map PIP — aggiorna con atleti e posiziona sprite NDI
   if (routeCurve && miniMap) {
