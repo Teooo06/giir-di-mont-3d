@@ -418,7 +418,6 @@ function getSceneParams(name) {
   if (name === 'overview') return { pos: new THREE.Vector3(0, 480, 760), target: new THREE.Vector3(0, 70, 0), label: 'PANORAMICA 3D VALLE PREMANA' };
   if (name === 'runner' && routeCurve) { const p = routeCurve.getPointAt(ratio); return { pos: p.clone().add(new THREE.Vector3(95, 55, 115)), target: p.clone(), label: `INSEGUIMENTO DRONE: ${selectedAthlete?.name || 'Leader'}` }; }
   if (name === 'checkpoint' && routeCurve) { const p = routeCurve.getPointAt(14.5 / 32.0); return { pos: p.clone().add(new THREE.Vector3(-80, 50, 95)), target: p.clone(), label: 'INQUADRATURA: BOCCHETTA DI LAREC (2070m)' }; }
-  if (name === 'pizzo' && routeCurve) { const p = routeCurve.getPointAt(27.5 / 32.0); return { pos: p.clone().add(new THREE.Vector3(85, 65, -75)), target: p.clone(), label: 'INQUADRATURA: ALPE DELEGUAGGIO' }; }
   if (name === 'topdown') return { pos: new THREE.Vector3(0, 900, 10), target: new THREE.Vector3(0, 40, 0), label: 'VISTA SATELLITARE ZENITH' };
   return null;
 }
@@ -439,14 +438,13 @@ document.querySelectorAll('[data-scene]').forEach(b => {
   b.addEventListener('click', () => setScene(b.dataset.scene));
 });
 
-// Tastiera
+// Tastiera — 1-4 allineati ai bottoni Regia (pizzo rimosso, era vecchia 4 → ora 4 = topdown)
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   if (e.key === '1') setScene('overview');
   if (e.key === '2') setScene('runner');
   if (e.key === '3') setScene('checkpoint');
-  if (e.key === '4') setScene('pizzo');
-  if (e.key === '5') setScene('topdown');
+  if (e.key === '4') setScene('topdown');
   if (e.key === ' ') {
     isAutoPlaying = !isAutoPlaying;
     e.preventDefault();

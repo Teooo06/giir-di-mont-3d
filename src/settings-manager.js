@@ -1,7 +1,7 @@
 export class SettingsManager {
   constructor(options = {}) {
     this.defaultSettings = {
-      themeColor: '#dff654', // Giallo fluo Giir di Mont
+      themeColor: '#a4c736', // Verde Giir sito (ex #dff654) — --e-global-color-astglobalcolor0
       fontFamily: 'Barlow Condensed', // 'Barlow Condensed', 'DM Sans', 'Montserrat', 'Oswald'
       terrainStyle: 'satellite', // 'satellite', 'stylized', 'dark'
       verticalExaggeration: 1.25, // 1.0 to 1.8
@@ -30,6 +30,11 @@ export class SettingsManager {
             this.settings.ndiSourceName = base;
             try { localStorage.setItem('giir_settings_v1', JSON.stringify(this.settings)); } catch (e2) {}
           }
+        }
+        // MIGRAZIONE colore sito: #dff654 (vecchio giallo fluo) → #a4c736 (verde sito)
+        if (this.settings.themeColor === '#dff654') {
+          this.settings.themeColor = this.defaultSettings.themeColor;
+          try { localStorage.setItem('giir_settings_v1', JSON.stringify(this.settings)); } catch (e2) {}
         }
       }
     } catch (e) {}
