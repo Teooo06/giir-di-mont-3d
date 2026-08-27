@@ -6,7 +6,7 @@ const NDI_SOURCE_NAME = process.env.NDI_NAME || 'GIIR-3D-PROGRAM';
 const WS_PORT = parseInt(process.env.NDI_WS_PORT || '9998', 10);
 const WIDTH = 1920;
 const HEIGHT = 1080;
-const DEFAULT_FPS = 50; // ponytail: calibration knob — client setFps(30) throttles via frameInterval, server just tags frameRateN; no server-side drop needed
+const DEFAULT_FPS = 30; // ponytail: calibration knob — client setFps(30) throttles via frameInterval, server just tags frameRateN; no server-side drop needed
 
 let ndiSender = null;
 let currentFps = DEFAULT_FPS;

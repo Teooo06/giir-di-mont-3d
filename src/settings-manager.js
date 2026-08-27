@@ -8,7 +8,7 @@ export class SettingsManager {
       trackGlow: true,
       showCheckpoints3D: true,
       showElevationProfile: true,
-      ndiFps: 50, // ponytail: 50 is target, calibration knob — if NDI p95 >16ms on target Mac, setFps(30) via /impostazioni (saves ~6.6ms budget slack, no code change)
+      ndiFps: 30, // ottimizzazione wifi: 30fps default (era 50) — dimezza banda NDI, ~12ms budget vs 20ms, più fluido su wifi
       ndiSourceName: 'GIIR-3D-PROGRAM'
     };
 
@@ -34,6 +34,11 @@ export class SettingsManager {
         // MIGRAZIONE colore sito: #dff654 (vecchio giallo fluo) → #a4c736 (verde sito)
         if (this.settings.themeColor === '#dff654') {
           this.settings.themeColor = this.defaultSettings.themeColor;
+          try { localStorage.setItem('giir_settings_v1', JSON.stringify(this.settings)); } catch (e2) {}
+        }
+        // MIGRAZIONE fps: 50→30 default per wifi/leggerezza
+        if (this.settings.ndiFps === 50) {
+          this.settings.ndiFps = 30;
           try { localStorage.setItem('giir_settings_v1', JSON.stringify(this.settings)); } catch (e2) {}
         }
       }
