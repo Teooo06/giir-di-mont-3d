@@ -53,6 +53,9 @@ controls.minDistance = 40;
 controls.maxDistance = 2600;
 controls.maxPolarAngle = Math.PI * 0.485;
 
+// YOU-24: gamepad edge state — ponytail: 4 bools for D-pad, no lib
+let gamepadPrevDpad = [false, false, false, false];
+
 // Illuminazione Montana Naturale e Chiara (luce bianca pulita, niente dominante gialla)
 const hemiLight = new THREE.HemisphereLight('#f2f8ff', '#2d3b32', 2.2);
 scene.add(hemiLight);
@@ -758,6 +761,37 @@ function frame() {
     controls.dampingFactor = THREE.MathUtils.lerp(0.08, 0.02, e);
     if (t >= 1) { camTween = null; targetPos.copy(controls.target); controls.dampingFactor = 0.08; }
   }
+
+  // YOU-24: gamepad poll — ponytail: native navigator.getGamepads(), left stick orbit / right stick zoom / D-pad scenes, dead-zone 0.15 calibration knob
+  try {
+    const gp = navigator.getGamepads ? navigator.getGamepads()[0] : null;
+    if (gp && gp.connected) {
+      const dz = 0.15;
+      const lx = Math.abs(gp.axes[0] || 0) > dz ? gp.axes[0] : 0;
+      const ly = Math.abs(gp.axes[1] || 0) > dz ? gp.axes[1] : 0;
+      if ((lx || ly) && !camTween) {
+        const sph = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+        sph.theta -= lx * 0.03;
+        sph.phi = THREE.MathUtils.clamp(sph.phi + ly * 0.03, 0.1, Math.PI * 0.48);
+        camera.position.setFromSpherical(sph).add(controls.target);
+      }
+      const ry = Math.abs(gp.axes[3] || 0) > dz ? gp.axes[3] : 0;
+      if (ry && !camTween) {
+        const dir = camera.position.clone().sub(controls.target);
+        const dist = dir.length();
+        const nd = THREE.MathUtils.clamp(dist + ry * dist * 0.04, controls.minDistance, controls.maxDistance);
+        camera.position.copy(controls.target).add(dir.normalize().multiplyScalar(nd));
+      }
+      // D-pad → scenes (edge trigger, no repeat while held)
+      const dpadBtns = [12, 15, 13, 14]; // up,right,down,left → overview,runner,checkpoint,pizzo
+      const dpadScenes = ['overview', 'runner', 'checkpoint', 'pizzo'];
+      dpadBtns.forEach((b, i) => {
+        const pressed = !!(gp.buttons[b] && gp.buttons[b].pressed);
+        if (pressed && !gamepadPrevDpad[i]) setScene(dpadScenes[i]);
+        gamepadPrevDpad[i] = pressed;
+      });
+    }
+  } catch (_) {}
 
   controls.update();
 
