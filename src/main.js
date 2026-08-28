@@ -553,6 +553,7 @@ document.querySelector('#gpx-input')?.addEventListener('change', async (e) => {
 // 5. REGIA SCENE & TELECAMERA
 // ----------------------------------------------------
 let activeScene = settingsManager.settings.activeScene || 'overview';
+let topdownZoomed = false; // M key toggle (Closes #148)
 let isAutoPlaying = true;
 const targetPos = new THREE.Vector3();
 
@@ -589,7 +590,10 @@ function getSceneParams(name) {
   if (name === 'runner' && routeCurve) { const p = routeCurve.getPointAt(ratio); return { pos: p.clone().add(new THREE.Vector3(95, 55, 115)), target: p.clone(), label: `INSEGUIMENTO DRONE: ${selectedAthlete?.name || 'Leader'}` }; }
   if (name === 'checkpoint' && routeCurve) { const p = routeCurve.getPointAt(14.5 / 32.0); return { pos: p.clone().add(new THREE.Vector3(-80, 50, 95)), target: p.clone(), label: 'INQUADRATURA: BOCCHETTA DI LAREC (2070m)' }; }
   // Pizzo Alto removed (Closes #143)
-  if (name === 'topdown') return { pos: new THREE.Vector3(0, 900, 10), target: new THREE.Vector3(0, 40, 0), label: 'VISTA SATELLITARE ZENITH' };
+  if (name === 'topdown') {
+    if (topdownZoomed) return { pos: new THREE.Vector3(0, 500, 10), target: new THREE.Vector3(0, 40, 0), label: 'ZOOM PREMANA (M per toggle)' };
+    return { pos: new THREE.Vector3(0, 900, 10), target: new THREE.Vector3(0, 40, 0), label: 'VISTA SATELLITARE ZENITH' };
+  }
   return null;
 }
 // TRANS-03: variable duration per pair — ponytail: map, fallback 1.8s
@@ -644,6 +648,12 @@ addEventListener('keydown', (e) => {
   if (e.key === '2') setScene('runner');
   if (e.key === '3') setScene('checkpoint');
   if (e.key === '5' || e.key === '4') setScene('topdown');
+  // M key: toggle topdown zoom in/out (Closes #148)
+  if (e.key.toLowerCase() === 'm' && activeScene === 'topdown') {
+    topdownZoomed = !topdownZoomed;
+    const zp = getSceneParams('topdown');
+    if (zp) { camTween = { startPos: camera.position.clone(), endPos: zp.pos.clone(), startTarget: controls.target.clone(), endTarget: zp.target.clone(), elapsed: 0, duration: 0.8 }; }
+  }
   if (e.key === ' ') {
     isAutoPlaying = !isAutoPlaying;
     e.preventDefault();
