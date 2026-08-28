@@ -12,7 +12,14 @@ export class SettingsManager {
       ndiSourceName: 'GIIR-3D-PROGRAM',
       simulationSpeed: 1, // RACE-02: 1=Tempo Reale, 10-100=Accelerato — ponytail: one knob, localStorage via giir_settings_v1
       cameraPreset: 'default', // MAP-03: preset camera Close/Wide/Helicopter — ponytail: string key, persisted
-      activeScene: 'overview' // MAP-03: ultima scena selezionata — ponytail: recall on reload
+      activeScene: 'overview', // MAP-03: ultima scena selezionata — ponytail: recall on reload
+      graphicsPreset: 'balanced', // PERF-07: high/balanced/performance/custom — ponytail: one key
+      shadowResolution: 1024, // PERF-07: 512/1024/2048
+      treesCount: 800, // PERF-07: 400/800/1400
+      tubeSegments: 600, // PERF-07: 400/600/800
+      ndiMsaa: 2, // PERF-07: 0/2/4
+      shadowsEnabled: true,
+      preserveBuffer: false
     };
 
     this.settings = { ...this.defaultSettings };
