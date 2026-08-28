@@ -945,7 +945,7 @@ function formatSecToTime(sec) {
   const s = String(sec%60).padStart(2,'0');
   return `${h}:${m}:${s}`;
 }
-let simElapsedSec = 0;
+var simElapsedSec = 0; // fix: var hoisted to avoid TDZ before updateRiderCard() top-level call (was let)
 function getDurationSec() {
   const ds = raceManager.defaultSplits2025?.splits || {};
   const t = parseTimeToSec(ds.cp9 || raceManager.winnerReferenceTime);
