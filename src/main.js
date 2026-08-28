@@ -387,8 +387,8 @@ function rebuildTrack3D() {
 
   const traveledCurve = new THREE.CatmullRomCurve3(traveledPts, false, 'centripetal');
   const remainingCurve = new THREE.CatmullRomCurve3(remainingPts, false, 'centripetal');
-  const traveledSegs = Math.max(8, Math.round(400 * leaderRatio));
-  const remainingSegs = Math.max(8, 400 - traveledSegs);
+  const traveledSegs = Math.max(8, Math.round(300 * leaderRatio)); // PERF-04: 400→300 test
+  const remainingSegs = Math.max(8, 300 - traveledSegs);
 
   const traveledGeo = new THREE.TubeGeometry(traveledCurve, traveledSegs, 1.1, 7, false);
   const remainingGeo = new THREE.TubeGeometry(remainingCurve, remainingSegs, 1.1, 7, false);
@@ -460,8 +460,8 @@ function refreshBicolorTrack() {
   if (remainingPts.length < 2) remainingPts.push(remainingPts[0].clone().add(new THREE.Vector3(0.1,0,0)));
   const traveledCurve = new THREE.CatmullRomCurve3(traveledPts, false, 'centripetal');
   const remainingCurve = new THREE.CatmullRomCurve3(remainingPts, false, 'centripetal');
-  const traveledSegs = Math.max(8, Math.round(400 * leaderRatio));
-  const remainingSegs = Math.max(8, 400 - traveledSegs);
+  const traveledSegs = Math.max(8, Math.round(300 * leaderRatio)); // PERF-04: 400→300
+  const remainingSegs = Math.max(8, 300 - traveledSegs);
   const traveledGeo = new THREE.TubeGeometry(traveledCurve, traveledSegs, 1.1, 7, false);
   const remainingGeo = new THREE.TubeGeometry(remainingCurve, remainingSegs, 1.1, 7, false);
   routeLineTraveled = new THREE.Mesh(traveledGeo, new THREE.MeshStandardMaterial({ color: '#fff5c0', emissive: settingsManager.settings.themeColor, emissiveIntensity: 0.65, roughness: 0.3 }));
