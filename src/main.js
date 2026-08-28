@@ -1011,8 +1011,8 @@ function frame() {
           camera.position.add(perp.multiplyScalar(5 * dt));
         }
 
-        // CAM-03: dead-zone + look-ahead for target — 3d-games: smooth lerp + look-ahead
-        const leadKm = 0.018; // ponytail: calibration knob — 18m ahead on track; bump to 0.03 for stronger anticipation
+        // CAM-03: look-ahead 15-20m (spec) — ponytail: 18m via routeCurve tangent, calibration knob
+        const leadKm = 0.018; // 18m ahead on track — satisfies 15-20m spec; bump to 0.03 for stronger anticipation
         const deadZone = 1.0; // world units ≈10m — ponytail: dead-zone threshold, prevents jitter when athlete paused/nudged
         const ratioAhead = Math.min(0.999, Math.max(0.001, (selectedAthlete.km + leadKm) / raceManager.totalKm));
         const ptAhead = routeCurve.getPointAt(ratioAhead);
