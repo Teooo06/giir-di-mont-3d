@@ -64,7 +64,7 @@ scene.add(hemiLight);
 const sun = new THREE.DirectionalLight('#ffffff', 3.2);
 sun.position.set(-560, 920, 460);
 sun.castShadow = true;
-sun.shadow.mapSize.set(512, 512); // PERF-03: test 512 for quality, ponytail 1024→512 4x win, revert to 1024 if soft
+sun.shadow.mapSize.set(1024, 1024); // revert to 1024 for NDI broadcast quality (Closes #149)
 sun.shadow.camera.left = sun.shadow.camera.bottom = -950;
 sun.shadow.camera.right = sun.shadow.camera.top = 950;
 sun.shadow.camera.near = 100;

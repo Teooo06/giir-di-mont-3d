@@ -65,7 +65,7 @@ export class NdiStreamer {
     this.ndiRenderer.setPixelRatio(1);
     this.ndiRenderer.outputColorSpace = THREE.SRGBColorSpace;
     this.ndiRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.ndiRenderer.toneMappingExposure = 1.12;
+    this.ndiRenderer.toneMappingExposure = 1.0; // balanced exposure for NDI broadcast (Closes #149)
     this.ndiRenderer.shadowMap.enabled = true;
     this.ndiRenderer.shadowMap.type = THREE.PCFShadowMap; // ponytail: PCFSoft→PCF on NDI, ~1.5ms win per 1080p frame, softness diff invisible at broadcast distance
 
