@@ -1002,7 +1002,16 @@ function frame() {
         const camLerp = 1 - Math.exp(-4 * dt); // frame-rate independent
         camera.position.lerp(idealCamPos, camLerp);
 
-        // CAM-02/03: dead-zone + look-ahead for target — 3d-games: smooth lerp + look-ahead
+        // CAM-02: raycast collision — keep 15m above terrain, lateral nudge if too low
+        const terrainY = terrainManager.getElevationAtWorld(camera.position.x, camera.position.z);
+        const minY = terrainY + 15;
+        if (camera.position.y < minY) {
+          camera.position.y = THREE.MathUtils.lerp(camera.position.y, minY, 0.15);
+          const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+          camera.position.add(perp.multiplyScalar(5 * dt));
+        }
+
+        // CAM-03: dead-zone + look-ahead for target — 3d-games: smooth lerp + look-ahead
         const leadKm = 0.018; // ponytail: calibration knob — 18m ahead on track; bump to 0.03 for stronger anticipation
         const deadZone = 1.0; // world units ≈10m — ponytail: dead-zone threshold, prevents jitter when athlete paused/nudged
         const ratioAhead = Math.min(0.999, Math.max(0.001, (selectedAthlete.km + leadKm) / raceManager.totalKm));
