@@ -148,7 +148,7 @@ function generateAlpineForest() {
     treesMesh.geometry.dispose();
   }
 
-  const count = 800; // ponytail: 1400→800, single InstancedMesh draw call unchanged, 43% fewer instance updates; add LOD billboard if still tight
+  const count = 600; // PERF-05: test 600 for density, ponytail 800→600 -25% instances, LOD billboard if needed
   const treeGeo = new THREE.ConeGeometry(2.4, 11, 5);
   treeGeo.translate(0, 5.5, 0); // Base a Y=0
   const treeMat = new THREE.MeshStandardMaterial({
