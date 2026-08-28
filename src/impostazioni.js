@@ -121,6 +121,24 @@ document.querySelector('#btn-add-athlete')?.addEventListener('click', () => {
   raceManager.selectAthlete(newAth.id);
 });
 
+// YOU-26: CSV import — ponytail: hidden file input + raceManager.importCsv, no dep
+document.querySelector('#btn-import-csv')?.addEventListener('click', () => {
+  document.querySelector('#csv-input')?.click();
+});
+document.querySelector('#csv-input')?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const n = raceManager.importCsv(text);
+    alert(`Importati ${n} atleti da ${file.name}`);
+  } catch (err) {
+    alert(`Errore CSV: ${err.message}`);
+  } finally {
+    e.target.value = '';
+  }
+});
+
 // Elimina atleta
 document.querySelector('#btn-delete-athlete')?.addEventListener('click', () => {
   const ath = raceManager.getSelectedAthlete();

@@ -223,4 +223,69 @@ export class RaceManager {
     this.selectedAthleteId = this.athletes[0]?.id || null;
     this.saveToStorage();
   }
+
+  // YOU-26: CSV import — ponytail: stdlib split, header-driven, one saveToStorage; covers bib,name,country,team,color,km,gap,status + cp* splits
+  importCsv(csvText) {
+    const lines = csvText.trim().split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return 0;
+    const splitLine = (line) => {
+      const out = []; let cur = ''; let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') { if (inQ && line[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
+        else if (c === ',' && !inQ) { out.push(cur); cur = ''; }
+        else cur += c;
+      }
+      out.push(cur);
+      return out.map(s => s.trim().replace(/^"|"$/g, ''));
+    };
+    const header = splitLine(lines[0]).map(h => h.trim().toLowerCase());
+    const idxBib = header.indexOf('bib');
+    const idxName = header.indexOf('name');
+    if (idxBib === -1 && idxName === -1) throw new Error('CSV deve avere colonne bib e name');
+    let imported = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const vals = splitLine(lines[i]);
+      const get = (col) => { const idx = header.indexOf(col); return idx !== -1 ? (vals[idx] || '').trim() : ''; };
+      const bib = get('bib'); const name = get('name');
+      if (!bib && !name) continue;
+      const km = parseFloat(get('km')) || 0;
+      const data = {
+        bib: bib || `${Math.floor(Math.random() * 500) + 1}`,
+        name: name || `Atleta ${bib}`,
+        country: get('country') || get('nazione') || 'ITA',
+        team: get('team') || get('squadra') || 'Skyrunner',
+        color: get('color') || get('colore') || '#dff654',
+        km: Math.max(0, Math.min(this.totalKm, km)),
+        gap: get('gap') || '+00:00',
+        status: get('status') || 'running'
+      };
+      const splits = {};
+      header.forEach((h, hi) => { if (h.startsWith('cp')) splits[h] = (vals[hi] || '').trim(); });
+      // upsert by bib
+      let ath = this.athletes.find(a => a.bib === data.bib);
+      if (ath) {
+        Object.assign(ath, data);
+        if (Object.keys(splits).length) ath.splits = { ...ath.splits, ...splits };
+        // if split gives later km, sync km to last non-empty checkpoint
+        const lastCp = [...this.checkpoints].reverse().find(cp => splits[cp.id]);
+        if (lastCp) ath.km = lastCp.km;
+      } else {
+        const newAth = {
+          id: 'ath-' + Date.now() + '-' + imported,
+          ...data,
+          pace: '6:15 min/km',
+          splits: Object.keys(splits).length ? splits : { cp0: '00:00:00' }
+        };
+        if (Object.keys(splits).length) {
+          const lastCp = [...this.checkpoints].reverse().find(cp => splits[cp.id]);
+          if (lastCp) newAth.km = lastCp.km;
+        }
+        this.athletes.push(newAth);
+      }
+      imported++;
+    }
+    if (imported) this.saveToStorage();
+    return imported;
+  }
 }
