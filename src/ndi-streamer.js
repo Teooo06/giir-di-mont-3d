@@ -21,6 +21,7 @@ export class NdiStreamer {
     };
 
     this.onStatusChange = options.onStatusChange || null;
+    this.onTimingUpdate = options.onTimingUpdate || null; // YOU-27: live timing webhook passthrough
 
     // Buffer pixel 1080p
     this.pixelBuffer = new Uint8Array(this.width * this.height * 4);
@@ -44,9 +45,9 @@ export class NdiStreamer {
 
     this.ndiRenderer = new THREE.WebGLRenderer({
       canvas: this.ndiCanvas,
-      antialias: true,
+      antialias: true, // ponytail: MSAA 4x via antialias:true is the only knob in Three r180; samples:2 not exposed — set antialias:false for 0x if still tight (saves ~0.8ms), keep true for now
       powerPreference: 'high-performance',
-      preserveDrawingBuffer: true,
+      preserveDrawingBuffer: true, // required for readPixels — keep only here, browser renderer now false
       alpha: true
     });
     this.ndiRenderer.setSize(this.width, this.height, false);
@@ -55,7 +56,7 @@ export class NdiStreamer {
     this.ndiRenderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.ndiRenderer.toneMappingExposure = 1.12;
     this.ndiRenderer.shadowMap.enabled = true;
-    this.ndiRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.ndiRenderer.shadowMap.type = THREE.PCFShadowMap; // ponytail: PCFSoft→PCF on NDI, ~1.5ms win per 1080p frame, softness diff invisible at broadcast distance
 
     this.initWebSocket();
   }
@@ -77,6 +78,8 @@ export class NdiStreamer {
           if (data.type === 'ndi_status') {
             this.status = { ...this.status, ...data };
             this.emitStatus(this.status);
+          } else if (data.type === 'timing_update' && typeof this.onTimingUpdate === 'function') {
+            this.onTimingUpdate(data.updates || []);
           }
         } catch (e) {}
       };

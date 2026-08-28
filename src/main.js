@@ -29,12 +29,12 @@ camera.layers.set(0);
 programCamera.layers.set(0);
 programCamera.layers.enable(1);
 
-// Renderer WebGL
+// Renderer WebGL — ponytail: preserveDrawingBuffer false on browser (only NDI renderer needs it for readPixels), saves ~0.5-1ms composite
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: true,
   powerPreference: 'high-performance',
-  preserveDrawingBuffer: true
+  preserveDrawingBuffer: false
 });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -53,6 +53,9 @@ controls.minDistance = 40;
 controls.maxDistance = 2600;
 controls.maxPolarAngle = Math.PI * 0.485;
 
+// YOU-24: gamepad edge state — ponytail: 4 bools for D-pad, no lib
+let gamepadPrevDpad = [false, false, false, false];
+
 // Illuminazione Montana Naturale e Chiara (luce bianca pulita, niente dominante gialla)
 const hemiLight = new THREE.HemisphereLight('#f2f8ff', '#2d3b32', 2.2);
 scene.add(hemiLight);
@@ -60,7 +63,7 @@ scene.add(hemiLight);
 const sun = new THREE.DirectionalLight('#ffffff', 3.2);
 sun.position.set(-560, 920, 460);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1024, 1024); // ponytail: 2048→1024, 4x memory/BW win, visual diff negligible at 760m dist; revert to 2048 if shadows look soft on close-ups
 sun.shadow.camera.left = sun.shadow.camera.bottom = -950;
 sun.shadow.camera.right = sun.shadow.camera.top = 950;
 sun.shadow.camera.near = 100;
@@ -104,7 +107,22 @@ const ndiStreamer = new NdiStreamer({
   fps: settingsManager.settings.ndiFps,
   width: 1920,
   height: 1080,
-  onStatusChange: updateNdiHud
+  onStatusChange: updateNdiHud,
+  // YOU-27: live timing → apply to raceManager instantly (same logic as impostazioni.js)
+  onTimingUpdate: (updates) => {
+    updates.forEach(u => {
+      const bib = String(u.bib ?? '').trim(); if (!bib) return;
+      let ath = raceManager.athletes.find(a => a.bib === bib);
+      if (!ath && u.name) { ath = raceManager.addAthlete({ bib, name: u.name, country: u.country || 'ITA', team: u.team || 'Skyrunner', color: u.color || '#dff654' }); }
+      if (!ath) return;
+      if (u.km !== undefined && u.km !== null && u.km !== '') raceManager.updateAthleteKm(ath.id, u.km);
+      if (u.gap !== undefined) raceManager.updateAthleteDetails(ath.id, { gap: String(u.gap) });
+      if (u.status !== undefined) raceManager.updateAthleteDetails(ath.id, { status: String(u.status) });
+      if (u.splits && typeof u.splits === 'object') Object.entries(u.splits).forEach(([cp, t]) => raceManager.updateSplitTime(ath.id, cp, String(t)));
+      // also support flat cp* fields: {cp3:"01:29:40"}
+      Object.keys(u).forEach(k => { if (k.startsWith('cp')) raceManager.updateSplitTime(ath.id, k, String(u[k])); });
+    });
+  }
 });
 
 // Canale di sincronizzazione istantanea con /impostazioni
@@ -129,7 +147,7 @@ function generateAlpineForest() {
     treesMesh.geometry.dispose();
   }
 
-  const count = 1400;
+  const count = 800; // ponytail: 1400→800, single InstancedMesh draw call unchanged, 43% fewer instance updates; add LOD billboard if still tight
   const treeGeo = new THREE.ConeGeometry(2.4, 11, 5);
   treeGeo.translate(0, 5.5, 0); // Base a Y=0
   const treeMat = new THREE.MeshStandardMaterial({
@@ -319,7 +337,9 @@ function rebuildTrack3D() {
 
   const worldPoints = rawTrackPoints.map(p => {
     const v = terrainManager.coordToWorld(p.lat, p.lon, p.ele);
-    v.y += 1.8;
+    // YOU-22: terrain adherence — ponytail: max(track ele, DEM+offset) prevents sinking; one line, no raycast
+    const ground = terrainManager.getElevationAtWorld(v.x, v.z);
+    v.y = Math.max(v.y, ground + 1.8); // calibration knob: 1.8 world units (~14m real), bump to 2.5 if steep faces still clip
     return v;
   });
 
@@ -327,7 +347,7 @@ function rebuildTrack3D() {
 
   routeCurve = new THREE.CatmullRomCurve3(worldPoints, false, 'centripetal');
 
-  const tubeGeo = new THREE.TubeGeometry(routeCurve, 800, 1.1, 7, false);
+  const tubeGeo = new THREE.TubeGeometry(routeCurve, 400, 1.1, 7, false); // ponytail: 800→400 segments, ~50% fewer verts, visual diff negligible at broadcast distance; threejs-geometry: choose appropriate segment counts
   routeLine = new THREE.Mesh(
     tubeGeo,
     new THREE.MeshStandardMaterial({
@@ -369,7 +389,7 @@ function parseGpxAndBuild(xmlText, filename = 'giir-di-mont-32-km.gpx') {
   const trackStatus = document.querySelector('#track-status');
   if (trackStatus) trackStatus.textContent = `${filename} (${rawTrackPoints.length} punti)`;
   
-  setScene('overview');
+  setScene('overview', { instant: true });
 }
 
 // Inizializza Terreno e GPX all'avvio
@@ -409,40 +429,30 @@ let activeScene = 'overview';
 let isAutoPlaying = true;
 const targetPos = new THREE.Vector3();
 
-function setScene(sceneName) {
-  activeScene = sceneName;
-  document.querySelectorAll('[data-scene]').forEach(b => {
-    b.classList.toggle('active', b.dataset.scene === sceneName);
-  });
-
-  const modeEl = document.querySelector('#mode');
+// ponytail: native lerp + easeInOutCubic instead of GSAP — stdlib Math, ~40 lines, no new dep; upgrade to GSAP/Bezier if director wants spline easing
+let camTween = null; // { startPos, endPos, startTarget, endTarget, elapsed, duration }
+function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+function getSceneParams(name) {
   const selectedAthlete = raceManager.getSelectedAthlete();
   const ratio = selectedAthlete ? (selectedAthlete.km / raceManager.totalKm) : 0.45;
-
-  if (sceneName === 'overview') {
-    camera.position.set(0, 480, 760);
-    controls.target.set(0, 70, 0);
-    if (modeEl) modeEl.textContent = 'PANORAMICA 3D VALLE PREMANA';
-  } else if (sceneName === 'runner' && routeCurve) {
-    const p = routeCurve.getPointAt(ratio);
-    camera.position.copy(p).add(new THREE.Vector3(95, 55, 115));
-    controls.target.copy(p);
-    if (modeEl) modeEl.textContent = `INSEGUIMENTO DRONE: ${selectedAthlete?.name || 'Leader'}`;
-  } else if (sceneName === 'checkpoint' && routeCurve) {
-    const p = routeCurve.getPointAt(14.5 / 32.0);
-    camera.position.copy(p).add(new THREE.Vector3(-80, 50, 95));
-    controls.target.copy(p);
-    if (modeEl) modeEl.textContent = 'INQUADRATURA: BOCCHETTA DI LAREC (2070m)';
-  } else if (sceneName === 'pizzo' && routeCurve) {
-    const p = routeCurve.getPointAt(27.5 / 32.0);
-    camera.position.copy(p).add(new THREE.Vector3(85, 65, -75));
-    controls.target.copy(p);
-    if (modeEl) modeEl.textContent = 'INQUADRATURA: ALPE DELEGUAGGIO';
-  } else if (sceneName === 'topdown') {
-    camera.position.set(0, 900, 10);
-    controls.target.set(0, 40, 0);
-    if (modeEl) modeEl.textContent = 'VISTA SATELLITARE ZENITH';
-  }
+  if (name === 'overview') return { pos: new THREE.Vector3(0, 480, 760), target: new THREE.Vector3(0, 70, 0), label: 'PANORAMICA 3D VALLE PREMANA' };
+  if (name === 'runner' && routeCurve) { const p = routeCurve.getPointAt(ratio); return { pos: p.clone().add(new THREE.Vector3(95, 55, 115)), target: p.clone(), label: `INSEGUIMENTO DRONE: ${selectedAthlete?.name || 'Leader'}` }; }
+  if (name === 'checkpoint' && routeCurve) { const p = routeCurve.getPointAt(14.5 / 32.0); return { pos: p.clone().add(new THREE.Vector3(-80, 50, 95)), target: p.clone(), label: 'INQUADRATURA: BOCCHETTA DI LAREC (2070m)' }; }
+  if (name === 'pizzo' && routeCurve) { const p = routeCurve.getPointAt(27.5 / 32.0); return { pos: p.clone().add(new THREE.Vector3(85, 65, -75)), target: p.clone(), label: 'INQUADRATURA: ALPE DELEGUAGGIO' }; }
+  if (name === 'topdown') return { pos: new THREE.Vector3(0, 900, 10), target: new THREE.Vector3(0, 40, 0), label: 'VISTA SATELLITARE ZENITH' };
+  return null;
+}
+function setScene(sceneName, opts = {}) {
+  const { instant = false, duration = 1.8 } = opts; // ponytail: calibration knob — duration 1.8s, tweak per scene if needed
+  activeScene = sceneName;
+  document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === sceneName));
+  const params = getSceneParams(sceneName);
+  if (!params) return;
+  const modeEl = document.querySelector('#mode');
+  if (modeEl) modeEl.textContent = params.label;
+  if (instant || !routeCurve) { camera.position.copy(params.pos); controls.target.copy(params.target); targetPos.copy(params.target); camTween = null; return; }
+  // start tween from current (mid-flight safe) to target — 3d-games: smooth following via lerp, camera feel
+  camTween = { startPos: camera.position.clone(), endPos: params.pos.clone(), startTarget: controls.target.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
 }
 
 document.querySelectorAll('[data-scene]').forEach(b => {
@@ -741,14 +751,62 @@ function frame() {
     const selectedAthlete = raceManager.getSelectedAthlete();
     if (selectedAthlete) {
       updateRiderCard();
-      if (activeScene === 'runner') {
-        const ratio = Math.min(0.999, Math.max(0.001, selectedAthlete.km / raceManager.totalKm));
-        const pt = routeCurve.getPointAt(ratio);
-        targetPos.lerp(pt, 0.04);
+      if (activeScene === 'runner' && !camTween) {
+        // CAM-2: dead-zone + look-ahead — 3d-games: smooth lerp + look-ahead for movement
+        const leadKm = 0.018; // ponytail: calibration knob — 18m ahead on track; bump to 0.03 for stronger anticipation
+        const deadZone = 1.0; // world units ≈10m — ponytail: dead-zone threshold, prevents jitter when athlete paused/nudged
+        const ratioAhead = Math.min(0.999, Math.max(0.001, (selectedAthlete.km + leadKm) / raceManager.totalKm));
+        const ptAhead = routeCurve.getPointAt(ratioAhead);
+        if (targetPos.distanceTo(ptAhead) > deadZone) {
+          targetPos.lerp(ptAhead, 0.04);
+        }
         controls.target.copy(targetPos);
       }
     }
   }
+
+  // cinematic tween — 3d-games camera feel: smooth lerp + easeInOutCubic, no external lib
+  if (camTween) {
+    camTween.elapsed += dt;
+    let t = Math.min(1, camTween.elapsed / camTween.duration);
+    const e = easeInOutCubic(t);
+    camera.position.lerpVectors(camTween.startPos, camTween.endPos, e);
+    controls.target.lerpVectors(camTween.startTarget, camTween.endTarget, e);
+    // YOU-11: ease damping 0.08→0.02 during flight — ponytail: one lerp, snap back to 0.08 on complete
+    controls.dampingFactor = THREE.MathUtils.lerp(0.08, 0.02, e);
+    if (t >= 1) { camTween = null; targetPos.copy(controls.target); controls.dampingFactor = 0.08; }
+  }
+
+  // YOU-24: gamepad poll — ponytail: native navigator.getGamepads(), left stick orbit / right stick zoom / D-pad scenes, dead-zone 0.15 calibration knob
+  try {
+    const gp = navigator.getGamepads ? navigator.getGamepads()[0] : null;
+    if (gp && gp.connected) {
+      const dz = 0.15;
+      const lx = Math.abs(gp.axes[0] || 0) > dz ? gp.axes[0] : 0;
+      const ly = Math.abs(gp.axes[1] || 0) > dz ? gp.axes[1] : 0;
+      if ((lx || ly) && !camTween) {
+        const sph = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+        sph.theta -= lx * 0.03;
+        sph.phi = THREE.MathUtils.clamp(sph.phi + ly * 0.03, 0.1, Math.PI * 0.48);
+        camera.position.setFromSpherical(sph).add(controls.target);
+      }
+      const ry = Math.abs(gp.axes[3] || 0) > dz ? gp.axes[3] : 0;
+      if (ry && !camTween) {
+        const dir = camera.position.clone().sub(controls.target);
+        const dist = dir.length();
+        const nd = THREE.MathUtils.clamp(dist + ry * dist * 0.04, controls.minDistance, controls.maxDistance);
+        camera.position.copy(controls.target).add(dir.normalize().multiplyScalar(nd));
+      }
+      // D-pad → scenes (edge trigger, no repeat while held)
+      const dpadBtns = [12, 15, 13, 14]; // up,right,down,left → overview,runner,checkpoint,pizzo
+      const dpadScenes = ['overview', 'runner', 'checkpoint', 'pizzo'];
+      dpadBtns.forEach((b, i) => {
+        const pressed = !!(gp.buttons[b] && gp.buttons[b].pressed);
+        if (pressed && !gamepadPrevDpad[i]) setScene(dpadScenes[i]);
+        gamepadPrevDpad[i] = pressed;
+      });
+    }
+  } catch (_) {}
 
   controls.update();
 

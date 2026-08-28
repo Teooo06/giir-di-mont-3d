@@ -6,7 +6,7 @@ const NDI_SOURCE_NAME = process.env.NDI_NAME || 'GIIR-3D-PROGRAM';
 const WS_PORT = parseInt(process.env.NDI_WS_PORT || '9998', 10);
 const WIDTH = 1920;
 const HEIGHT = 1080;
-const DEFAULT_FPS = 50;
+const DEFAULT_FPS = 50; // ponytail: calibration knob — client setFps(30) throttles via frameInterval, server just tags frameRateN; no server-side drop needed
 
 let ndiSender = null;
 let currentFps = DEFAULT_FPS;
@@ -85,7 +85,34 @@ function startIdleLoop() {
 }
 
 const server = http.createServer((req, res) => {
+  // CORS — ponytail: minimal, no extra dep
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+  // YOU-27: live timing webhook — POST /timing {bib, km, gap, splits} or [{...}] → broadcast to all WS clients
+  if (req.url === '/timing' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const data = body ? JSON.parse(body) : null;
+        if (!data) throw new Error('empty body');
+        const updates = Array.isArray(data) ? data : [data];
+        const payload = JSON.stringify({ type: 'timing_update', updates });
+        // broadcast to all connected WS clients (NDI bridge WS is same channel)
+        try { wss.clients.forEach(c => { if (c.readyState === 1) c.send(payload); }); } catch (_) {}
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, received: updates.length }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
   if (req.url === '/status') {
     const connections = ndiSender && typeof ndiSender.connections === 'function' ? ndiSender.connections() : 0;
     const tally = ndiSender && typeof ndiSender.tally === 'function' ? ndiSender.tally() : { onProgram: false, onPreview: false };
