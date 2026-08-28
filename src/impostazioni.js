@@ -10,6 +10,33 @@ const raceManager = new RaceManager({
   }
 });
 
+// YOU-27: live timing WS hook — reuse NDI bridge WS (port 9998) for timing_update broadcasts
+let timingWs = null;
+function connectTimingWs() {
+  try {
+    timingWs = new WebSocket(`ws://${location.hostname || 'localhost'}:9998`);
+    timingWs.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data.type !== 'timing_update' || !Array.isArray(data.updates)) return;
+        data.updates.forEach(u => {
+          const bib = String(u.bib ?? '').trim(); if (!bib) return;
+          let ath = raceManager.athletes.find(a => a.bib === bib);
+          if (!ath && u.name) { ath = raceManager.addAthlete({ bib, name: u.name, country: u.country || 'ITA', team: u.team || 'Skyrunner', color: u.color || '#dff654' }); }
+          if (!ath) return;
+          if (u.km !== undefined && u.km !== null && u.km !== '') raceManager.updateAthleteKm(ath.id, u.km);
+          if (u.gap !== undefined) raceManager.updateAthleteDetails(ath.id, { gap: String(u.gap) });
+          if (u.status !== undefined) raceManager.updateAthleteDetails(ath.id, { status: String(u.status) });
+          if (u.splits && typeof u.splits === 'object') Object.entries(u.splits).forEach(([cp, t]) => raceManager.updateSplitTime(ath.id, cp, String(t)));
+          Object.keys(u).forEach(k => { if (k.startsWith('cp')) raceManager.updateSplitTime(ath.id, k, String(u[k])); });
+        });
+      } catch (_) {}
+    };
+    timingWs.onclose = () => setTimeout(connectTimingWs, 2000);
+  } catch (_) { setTimeout(connectTimingWs, 3000); }
+}
+connectTimingWs();
+
 // Broadcast channel per notifiche istantanee
 const syncChannel = new BroadcastChannel('giir_sync_channel');
 

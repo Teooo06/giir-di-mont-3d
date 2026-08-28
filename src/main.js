@@ -107,7 +107,22 @@ const ndiStreamer = new NdiStreamer({
   fps: settingsManager.settings.ndiFps,
   width: 1920,
   height: 1080,
-  onStatusChange: updateNdiHud
+  onStatusChange: updateNdiHud,
+  // YOU-27: live timing → apply to raceManager instantly (same logic as impostazioni.js)
+  onTimingUpdate: (updates) => {
+    updates.forEach(u => {
+      const bib = String(u.bib ?? '').trim(); if (!bib) return;
+      let ath = raceManager.athletes.find(a => a.bib === bib);
+      if (!ath && u.name) { ath = raceManager.addAthlete({ bib, name: u.name, country: u.country || 'ITA', team: u.team || 'Skyrunner', color: u.color || '#dff654' }); }
+      if (!ath) return;
+      if (u.km !== undefined && u.km !== null && u.km !== '') raceManager.updateAthleteKm(ath.id, u.km);
+      if (u.gap !== undefined) raceManager.updateAthleteDetails(ath.id, { gap: String(u.gap) });
+      if (u.status !== undefined) raceManager.updateAthleteDetails(ath.id, { status: String(u.status) });
+      if (u.splits && typeof u.splits === 'object') Object.entries(u.splits).forEach(([cp, t]) => raceManager.updateSplitTime(ath.id, cp, String(t)));
+      // also support flat cp* fields: {cp3:"01:29:40"}
+      Object.keys(u).forEach(k => { if (k.startsWith('cp')) raceManager.updateSplitTime(ath.id, k, String(u[k])); });
+    });
+  }
 });
 
 // Canale di sincronizzazione istantanea con /impostazioni

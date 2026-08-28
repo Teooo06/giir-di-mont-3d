@@ -21,6 +21,7 @@ export class NdiStreamer {
     };
 
     this.onStatusChange = options.onStatusChange || null;
+    this.onTimingUpdate = options.onTimingUpdate || null; // YOU-27: live timing webhook passthrough
 
     // Buffer pixel 1080p
     this.pixelBuffer = new Uint8Array(this.width * this.height * 4);
@@ -77,6 +78,8 @@ export class NdiStreamer {
           if (data.type === 'ndi_status') {
             this.status = { ...this.status, ...data };
             this.emitStatus(this.status);
+          } else if (data.type === 'timing_update' && typeof this.onTimingUpdate === 'function') {
+            this.onTimingUpdate(data.updates || []);
           }
         } catch (e) {}
       };
