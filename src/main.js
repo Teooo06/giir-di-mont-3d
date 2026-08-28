@@ -641,7 +641,10 @@ if (kmSlider) {
   kmSlider.addEventListener('input', (e) => {
     const athlete = raceManager.getSelectedAthlete();
     if (athlete) {
-      raceManager.updateAthleteKm(athlete.id, parseFloat(e.target.value));
+      const km = parseFloat(e.target.value);
+      raceManager.updateAthleteKm(athlete.id, km);
+      // RACE-05: slider syncs global clock so next frame continues from scrubbed km — works in realtime mode too
+      simElapsedSec = kmToElapsedSec(km);
     }
   });
 }
@@ -794,6 +797,13 @@ function parseTimeToSec(str) {
   if (p.length === 1) return p[0];
   return null;
 }
+function formatSecToTime(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  const h = String(Math.floor(sec/3600)).padStart(2,'0');
+  const m = String(Math.floor((sec%3600)/60)).padStart(2,'0');
+  const s = String(sec%60).padStart(2,'0');
+  return `${h}:${m}:${s}`;
+}
 let simElapsedSec = 0;
 function getDurationSec() {
   const ds = raceManager.defaultSplits2025?.splits || {};
@@ -832,6 +842,33 @@ function interpolateKmForAthlete(ath, elapsedSec) {
   }
   if (e < pts[0].sec) return pts[0].km;
   return pts[pts.length-1].km;
+}
+// RACE-05: pausa/riavvolgimento — ponytail: reverse lookup km->sec, plain loop, no lib
+function kmToElapsedSec(km) {
+  const cps = raceManager.checkpoints;
+  const pts = [];
+  for (const cp of cps) {
+    const sec = parseTimeToSec(raceManager.defaultSplits2025?.splits?.[cp.id] || cp.refSplit);
+    if (sec != null) pts.push({ km: cp.km, sec, ele: cp.ele });
+  }
+  pts.sort((a,b)=>a.km-b.km);
+  if (!pts.length) return 0;
+  if (km <= pts[0].km) return pts[0].sec;
+  if (km >= pts[pts.length-1].km) return pts[pts.length-1].sec;
+  for (let i=0;i<pts.length-1;i++) {
+    const a = pts[i], b = pts[i+1];
+    if (km >= a.km && km <= b.km) {
+      const dist = b.km - a.km;
+      let r = dist === 0 ? 0 : (km - a.km)/dist;
+      const eleDelta = (b.ele ?? 0) - (a.ele ?? 0);
+      let factor = 1.0;
+      if (eleDelta > 80) factor = 1.25;
+      else if (eleDelta < -80) factor = 0.85;
+      if (factor !== 1.0) r = Math.pow(r, 1/factor); // invert RACE-04 exponent
+      return a.sec + r * (b.sec - a.sec);
+    }
+  }
+  return pts[pts.length-1].sec;
 }
 
 const clock = new THREE.Clock();
