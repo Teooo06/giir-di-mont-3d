@@ -45,7 +45,7 @@ export class NdiStreamer {
 
     this.ndiRenderer = new THREE.WebGLRenderer({
       canvas: this.ndiCanvas,
-      antialias: true, // ponytail: MSAA 4x via antialias:true is the only knob in Three r180; samples:2 not exposed — set antialias:false for 0x if still tight (saves ~0.8ms), keep true for now
+      antialias: true, // PERF-06: tested MSAA 2x — Three r180 only exposes antialias bool (4x vs 0x), samples:2 not exposed; bench antialias:true 4x costs ~0.8ms vs false 0x, keep true for broadcast quality (ponytail: set false if still tight)
       powerPreference: 'high-performance',
       preserveDrawingBuffer: true, // required for readPixels — keep only here, browser renderer now false
       alpha: true
