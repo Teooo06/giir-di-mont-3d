@@ -315,6 +315,80 @@ function initSettingsUI() {
     updateSimUI(speed);
   });
 
+  // PERF-07: Graphics preset High/Balanced/Performance — ponytail
+  const presetRadios = document.querySelectorAll('input[name="graphicsPreset"]');
+  const customBox = document.querySelector('#custom-graphics-settings');
+  const shadowSlider = document.querySelector('#shadow-resolution');
+  const shadowLabel = document.querySelector('#shadow-label');
+  const treesSlider = document.querySelector('#trees-count');
+  const treesLabel = document.querySelector('#trees-label');
+  const tubeSlider = document.querySelector('#tube-segments');
+  const tubeLabel = document.querySelector('#tube-label');
+  const msaaSelect = document.querySelector('#ndi-msaa');
+  const chkPreserve = document.querySelector('#chk-preserve-buffer');
+  const chkShadows = document.querySelector('#chk-shadows-enabled');
+  const presetMap = {
+    high: { shadowResolution: 2048, treesCount: 1400, tubeSegments: 800, ndiMsaa: 4, shadowsEnabled: true, preserveBuffer: false },
+    balanced: { shadowResolution: 1024, treesCount: 800, tubeSegments: 600, ndiMsaa: 2, shadowsEnabled: true, preserveBuffer: false },
+    performance: { shadowResolution: 512, treesCount: 400, tubeSegments: 400, ndiMsaa: 0, shadowsEnabled: true, preserveBuffer: false },
+  };
+  function applyPresetUI(name) {
+    const isCustom = name === 'custom';
+    if (customBox) customBox.style.display = isCustom ? 'block' : 'none';
+    if (!isCustom && presetMap[name]) {
+      const p = presetMap[name];
+      if (shadowSlider) { shadowSlider.value = p.shadowResolution; if (shadowLabel) shadowLabel.textContent = p.shadowResolution; }
+      if (treesSlider) { treesSlider.value = p.treesCount; if (treesLabel) treesLabel.textContent = p.treesCount; }
+      if (tubeSlider) { tubeSlider.value = p.tubeSegments; if (tubeLabel) tubeLabel.textContent = p.tubeSegments; }
+      if (msaaSelect) msaaSelect.value = String(p.ndiMsaa);
+      if (chkPreserve) chkPreserve.checked = p.preserveBuffer;
+      if (chkShadows) chkShadows.checked = p.shadowsEnabled;
+    }
+  }
+  const initialPreset = s.graphicsPreset || 'balanced';
+  presetRadios.forEach(r => { if (r.value === initialPreset) r.checked = true; });
+  applyPresetUI(initialPreset);
+  presetRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      const name = radio.value;
+      if (presetMap[name]) {
+        settingsManager.update({ graphicsPreset: name, ...presetMap[name] });
+      } else {
+        settingsManager.update({ graphicsPreset: name });
+      }
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+      applyPresetUI(name);
+    });
+  });
+  // custom sliders update
+  if (shadowSlider) shadowSlider.addEventListener('input', () => {
+    if (shadowLabel) shadowLabel.textContent = shadowSlider.value;
+    settingsManager.update({ graphicsPreset: 'custom', shadowResolution: parseInt(shadowSlider.value,10) });
+    syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    presetRadios.forEach(r => { if (r.value === 'custom') r.checked = true; });
+    if (customBox) customBox.style.display = 'block';
+  });
+  if (treesSlider) treesSlider.addEventListener('input', () => {
+    if (treesLabel) treesLabel.textContent = treesSlider.value;
+    settingsManager.update({ graphicsPreset: 'custom', treesCount: parseInt(treesSlider.value,10) });
+    syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    presetRadios.forEach(r => { if (r.value === 'custom') r.checked = true; });
+    if (customBox) customBox.style.display = 'block';
+  });
+  if (tubeSlider) tubeSlider.addEventListener('input', () => {
+    if (tubeLabel) tubeLabel.textContent = tubeSlider.value;
+    settingsManager.update({ graphicsPreset: 'custom', tubeSegments: parseInt(tubeSlider.value,10) });
+    syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    presetRadios.forEach(r => { if (r.value === 'custom') r.checked = true; });
+    if (customBox) customBox.style.display = 'block';
+  });
+  if (msaaSelect) msaaSelect.addEventListener('change', () => {
+    settingsManager.update({ graphicsPreset: 'custom', ndiMsaa: parseInt(msaaSelect.value,10) });
+    syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    presetRadios.forEach(r => { if (r.value === 'custom') r.checked = true; });
+    if (customBox) customBox.style.display = 'block';
+  });
+
   // Profilo Altimetrico
   const chkProf = document.querySelector('#chk-prof-overlay');
   if (chkProf) {
