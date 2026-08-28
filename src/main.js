@@ -16,7 +16,7 @@ const scene = new THREE.Scene();
 
 // Sfondo cielo alpino pulito e naturale (senza tinte gialle)
 scene.background = new THREE.Color('#94b5c7');
-scene.fog = new THREE.FogExp2('#9dbecd', 0.00045);
+scene.fog = new THREE.FogExp2('#9dbecd', 0.00068); // MAP-01: denser fog at edges to hide blue border, ponytail 0.00045→0.00068
 
 // Telecamera Operatore (Viewport)
 const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 2, 9000);
