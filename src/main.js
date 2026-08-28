@@ -752,7 +752,9 @@ function frame() {
     const e = easeInOutCubic(t);
     camera.position.lerpVectors(camTween.startPos, camTween.endPos, e);
     controls.target.lerpVectors(camTween.startTarget, camTween.endTarget, e);
-    if (t >= 1) { camTween = null; targetPos.copy(controls.target); }
+    // YOU-11: ease damping 0.08→0.02 during flight — ponytail: one lerp, snap back to 0.08 on complete
+    controls.dampingFactor = THREE.MathUtils.lerp(0.08, 0.02, e);
+    if (t >= 1) { camTween = null; targetPos.copy(controls.target); controls.dampingFactor = 0.08; }
   }
 
   controls.update();
