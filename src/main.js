@@ -732,9 +732,14 @@ function frame() {
     if (selectedAthlete) {
       updateRiderCard();
       if (activeScene === 'runner' && !camTween) {
-        const ratio = Math.min(0.999, Math.max(0.001, selectedAthlete.km / raceManager.totalKm));
-        const pt = routeCurve.getPointAt(ratio);
-        targetPos.lerp(pt, 0.04);
+        // CAM-2: dead-zone + look-ahead — 3d-games: smooth lerp + look-ahead for movement
+        const leadKm = 0.018; // ponytail: calibration knob — 18m ahead on track; bump to 0.03 for stronger anticipation
+        const deadZone = 1.0; // world units ≈10m — ponytail: dead-zone threshold, prevents jitter when athlete paused/nudged
+        const ratioAhead = Math.min(0.999, Math.max(0.001, (selectedAthlete.km + leadKm) / raceManager.totalKm));
+        const ptAhead = routeCurve.getPointAt(ratioAhead);
+        if (targetPos.distanceTo(ptAhead) > deadZone) {
+          targetPos.lerp(ptAhead, 0.04);
+        }
         controls.target.copy(targetPos);
       }
     }
