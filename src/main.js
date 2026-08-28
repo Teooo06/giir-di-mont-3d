@@ -282,7 +282,7 @@ function createCheckpointLabelSprite(name, km, themeColor) {
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: true });
   const sprite = new THREE.Sprite(mat);
   sprite.layers.set(0); // UI-04: unified sprite visible browser+NDI (was 1 NDI-only, HTML .label removed) — ponytail shortest diff
-  sprite.scale.set(48, 15, 1); // 512:160 = 3.2:1, world units
+  sprite.scale.set(80, 25, 1); // UI-05: 512:160=3.2:1, 80×25 world units — larger for broadcast readability
   return sprite;
 }
 
@@ -813,7 +813,7 @@ function frame() {
   const zoomScale = THREE.MathUtils.clamp(camDist / 750, 0.45, 1.0);
   labels.forEach(({ marker, sprite }) => {
     if (marker) marker.scale.setScalar(zoomScale);
-    if (sprite) sprite.scale.set(48 * zoomScale, 15 * zoomScale, 1);
+    if (sprite) sprite.scale.set(80 * zoomScale, 25 * zoomScale, 1); // UI-05 match 80×25
   });
   athleteMeshes.forEach(({ sprite }) => {
     if (sprite) sprite.scale.set(28 * zoomScale, 28 * zoomScale, 1);
