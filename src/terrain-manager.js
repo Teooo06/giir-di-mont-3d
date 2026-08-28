@@ -16,7 +16,7 @@ export class TerrainManager {
     this.metersPerDegreeLat = 111150;
     this.metersPerDegreeLon = 77211;
 
-    // Pre-carica la texture satellitare
+    // Pre-carica la texture satellitare — MAP-02: 4096 NDI / 2048 browser, ponytail deferred until PERF-01 headroom proven
     const textureLoader = new THREE.TextureLoader();
     this.satelliteTexture = textureLoader.load('/textures/premana-satellite.jpg', (tex) => {
       tex.wrapS = THREE.ClampToEdgeWrapping;
@@ -29,6 +29,24 @@ export class TerrainManager {
         this.applyStyle('satellite');
       }
     });
+    // MAP-02: HD texture for NDI (4096) — try load, fallback to standard if missing; deferred if VRAM tight per WAYFINDER_PROTOCOL
+    this.satelliteTextureHD = null;
+    textureLoader.load('/textures/premana-satellite-4096.jpg',
+      (tex) => {
+        tex.wrapS = THREE.ClampToEdgeWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.generateMipmaps = true;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 4;
+        this.satelliteTextureHD = tex;
+        // ponytail: keep 2048 for browser, use HD only for NDI — material switch handled in getMaterialForStyle(true)
+        console.log('[TerrainManager] HD satellite texture 4096 loaded for NDI');
+      },
+      undefined,
+      () => { console.log('[TerrainManager] HD 4096 not found, using 2048 for both — ponytail deferred'); }
+    );
   }
 
   async loadTerrain(url = '/data/terrain-premana.json') {
@@ -126,10 +144,11 @@ export class TerrainManager {
     this.scene.add(this.terrainMesh);
   }
 
-  getMaterialForStyle(styleName) {
+  getMaterialForStyle(styleName, isHD = false) {
     if (styleName === 'satellite' && this.satelliteTexture) {
+      const tex = (isHD && this.satelliteTextureHD) ? this.satelliteTextureHD : this.satelliteTexture;
       return new THREE.MeshStandardMaterial({
-        map: this.satelliteTexture,
+        map: tex,
         roughness: 0.82,
         metalness: 0.02,
         flatShading: false
