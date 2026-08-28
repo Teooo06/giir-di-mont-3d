@@ -363,56 +363,30 @@ function rebuildTrack3D() {
 
   routeCurve = new THREE.CatmullRomCurve3(worldPoints, false, 'centripetal');
 
-  // split at leader progress
-  const leader = raceManager.getSelectedAthlete();
-  const leaderRatio = leader ? Math.min(0.999, Math.max(0.001, leader.km / raceManager.totalKm)) : 0;
-  // find split index in worldPoints proportional to ratio
-  const splitIdx = Math.max(1, Math.min(worldPoints.length - 2, Math.round(worldPoints.length * leaderRatio)));
-  const traveledPts = worldPoints.slice(0, splitIdx + 1);
-  // ensure continuity: add interpolated point at exact ratio on curve if not aligned
-  try {
-    const exactPt = routeCurve.getPointAt(leaderRatio);
-    if (traveledPts.length) traveledPts[traveledPts.length - 1] = exactPt.clone();
-  } catch {}
-  const remainingPts = worldPoints.slice(splitIdx);
-  try {
-    const exactPt2 = routeCurve.getPointAt(leaderRatio);
-    if (remainingPts.length) remainingPts[0] = exactPt2.clone();
-  } catch {}
-  // ensure at least 2 points per segment
-  if (traveledPts.length < 2) traveledPts.push(traveledPts[0].clone().add(new THREE.Vector3(0.1,0,0)));
-  if (remainingPts.length < 2) remainingPts.push(remainingPts[0].clone().add(new THREE.Vector3(0.1,0,0)));
-
-  const traveledCurve = new THREE.CatmullRomCurve3(traveledPts, false, 'centripetal');
-  const remainingCurve = new THREE.CatmullRomCurve3(remainingPts, false, 'centripetal');
-  const traveledSegs = Math.max(8, Math.round(300 * leaderRatio)); // PERF-04: 400→300 test
-  const remainingSegs = Math.max(8, 300 - traveledSegs);
-
-  const traveledGeo = new THREE.TubeGeometry(traveledCurve, traveledSegs, 1.1, 7, false);
-  const remainingGeo = new THREE.TubeGeometry(remainingCurve, remainingSegs, 1.1, 7, false);
-
-  routeLineTraveled = new THREE.Mesh(
-    traveledGeo,
-    new THREE.MeshStandardMaterial({
-      color: '#fff5c0',
-      emissive: settingsManager.settings.themeColor,
-      emissiveIntensity: 0.65,
-      roughness: 0.3
-    })
-  );
-  routeLineRemaining = new THREE.Mesh(
-    remainingGeo,
-    new THREE.MeshStandardMaterial({
-      color: '#8a8a8a',
-      transparent: true,
-      opacity: 0.5,
-      roughness: 0.8,
-      emissive: '#000000'
-    })
-  );
+  // Single full-track tube with rainbow vertex colors (no split)
+  const leader0 = raceManager.getSelectedAthlete();
+  const leaderRatio0 = leader0 ? Math.min(0.999, Math.max(0.001, leader0.km / raceManager.totalKm)) : 0;
+  const tubeGeo = new THREE.TubeGeometry(routeCurve, 500, 1.1, 7, false);
+  const posAttr = tubeGeo.attributes.position;
+  const count = posAttr.count;
+  const colors = new Float32Array(count * 3);
+  const tHead = performance.now() * 0.0003;
+  for (let i = 0; i < count; i++) {
+    const ratio = i / count;
+    let r, g, b;
+    if (ratio <= leaderRatio0) {
+      const hue = ((ratio * 4 + tHead) % 1.0);
+      const col = new THREE.Color().setHSL(hue, 1.0, 0.55);
+      r = col.r; g = col.g; b = col.b;
+    } else {
+      r = 0.35; g = 0.38; b = 0.42;
+    }
+    colors[i * 3] = r; colors[i * 3 + 1] = g; colors[i * 3 + 2] = b;
+  }
+  tubeGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  routeLineTraveled = new THREE.Mesh(tubeGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.1 }));
   scene.add(routeLineTraveled);
-  scene.add(routeLineRemaining);
-  routeLine = routeLineTraveled; // compat alias
+  routeLine = routeLineTraveled;
 
   clearCheckpoints();
   raceManager.checkpoints.forEach(cp => {
