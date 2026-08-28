@@ -195,6 +195,9 @@ let routeCurve = null;
 let routeLine = null; // kept for compat — ponytail: alias to traveled
 let routeLineTraveled = null;
 let routeLineRemaining = null;
+let cachedWorldPoints = []; // PROG-02: cache for dynamic bicolor refresh
+let lastLeaderRatioForBicolor = -1;
+let progFrameCounter = 0;
 let labels = [];
 const checkpointGroup = new THREE.Group();
 scene.add(checkpointGroup);
@@ -342,6 +345,7 @@ function rebuildTrack3D() {
     v.y = Math.max(v.y, ground + 1.8); // calibration knob: 1.8 world units (~14m real), bump to 2.5 if steep faces still clip
     return v;
   });
+  cachedWorldPoints = worldPoints.map(v => v.clone());
 
   // PROG-01: bicolore — ponytail: 2 TubeGeometry split at leader ratio, stdlib THREE only
   if (routeLineTraveled) { scene.remove(routeLineTraveled); routeLineTraveled.geometry.dispose(); }
@@ -424,6 +428,36 @@ function rebuildTrack3D() {
   if (elevationProfile && typeof elevationProfile.setTrackData === 'function') {
     elevationProfile.setTrackData(rawTrackPoints, raceManager.checkpoints);
   }
+}
+
+// PROG-02: aggiornamento dinamico progresso — ponytail: throttled every 5 frames, 0.1% km threshold, cachedWorldPoints, dispose+rebuild tubes only
+function refreshBicolorTrack() {
+  if (!routeCurve || !cachedWorldPoints.length) return;
+  const leader = raceManager.getSelectedAthlete();
+  const leaderRatio = leader ? Math.min(0.999, Math.max(0.001, leader.km / raceManager.totalKm)) : 0;
+  if (Math.abs(leaderRatio - lastLeaderRatioForBicolor) < 0.002) return; // ~64m deadband, ponytail calibration knob
+  lastLeaderRatioForBicolor = leaderRatio;
+  if (routeLineTraveled) { scene.remove(routeLineTraveled); routeLineTraveled.geometry.dispose(); }
+  if (routeLineRemaining) { scene.remove(routeLineRemaining); routeLineRemaining.geometry.dispose(); }
+  const worldPoints = cachedWorldPoints;
+  const splitIdx = Math.max(1, Math.min(worldPoints.length - 2, Math.round(worldPoints.length * leaderRatio)));
+  const traveledPts = worldPoints.slice(0, splitIdx + 1);
+  try { const exactPt = routeCurve.getPointAt(leaderRatio); if (traveledPts.length) traveledPts[traveledPts.length-1] = exactPt.clone(); } catch {}
+  const remainingPts = worldPoints.slice(splitIdx);
+  try { const exactPt2 = routeCurve.getPointAt(leaderRatio); if (remainingPts.length) remainingPts[0] = exactPt2.clone(); } catch {}
+  if (traveledPts.length < 2) traveledPts.push(traveledPts[0].clone().add(new THREE.Vector3(0.1,0,0)));
+  if (remainingPts.length < 2) remainingPts.push(remainingPts[0].clone().add(new THREE.Vector3(0.1,0,0)));
+  const traveledCurve = new THREE.CatmullRomCurve3(traveledPts, false, 'centripetal');
+  const remainingCurve = new THREE.CatmullRomCurve3(remainingPts, false, 'centripetal');
+  const traveledSegs = Math.max(8, Math.round(400 * leaderRatio));
+  const remainingSegs = Math.max(8, 400 - traveledSegs);
+  const traveledGeo = new THREE.TubeGeometry(traveledCurve, traveledSegs, 1.1, 7, false);
+  const remainingGeo = new THREE.TubeGeometry(remainingCurve, remainingSegs, 1.1, 7, false);
+  routeLineTraveled = new THREE.Mesh(traveledGeo, new THREE.MeshStandardMaterial({ color: '#fff5c0', emissive: settingsManager.settings.themeColor, emissiveIntensity: 0.65, roughness: 0.3 }));
+  routeLineRemaining = new THREE.Mesh(remainingGeo, new THREE.MeshStandardMaterial({ color: '#8a8a8a', transparent: true, opacity: 0.5, roughness: 0.8, emissive: '#000000' }));
+  scene.add(routeLineTraveled);
+  scene.add(routeLineRemaining);
+  routeLine = routeLineTraveled;
 }
 
 function parseGpxAndBuild(xmlText, filename = 'giir-di-mont-32-km.gpx') {
@@ -937,6 +971,8 @@ function frame() {
       entry.sprite.position.copy(pt).add(new THREE.Vector3(0, 14 + Math.sin(performance.now() * 0.005) * 1.2, 0));
       entry.light.position.copy(pt).add(new THREE.Vector3(0, 10, 0));
     });
+    // PROG-02: refresh bicolor every 5 frames — ponytail: throttled, deadband 0.2% avoids rebuild jitter
+    if (++progFrameCounter % 5 === 0) refreshBicolorTrack();
 
     const selectedAthlete = raceManager.getSelectedAthlete();
     if (selectedAthlete) {
