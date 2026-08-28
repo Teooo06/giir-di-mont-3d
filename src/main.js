@@ -769,6 +769,49 @@ updateRiderCard();
 // ----------------------------------------------------
 // 9. RENDER LOOP PRINCIPALE
 // ----------------------------------------------------
+// RACE-03: interpolazione basata sugli splits — ponytail: parseTime stdlib, single simElapsedSec, native lerp, no lib
+function parseTimeToSec(str) {
+  if (!str || typeof str !== 'string') return null;
+  const p = str.trim().split(':').map(Number);
+  if (p.some(n => !Number.isFinite(n))) return null;
+  if (p.length === 3) return p[0]*3600 + p[1]*60 + p[2];
+  if (p.length === 2) return p[0]*60 + p[1];
+  if (p.length === 1) return p[0];
+  return null;
+}
+let simElapsedSec = 0;
+function getDurationSec() {
+  const ds = raceManager.defaultSplits2025?.splits || {};
+  const t = parseTimeToSec(ds.cp9 || raceManager.winnerReferenceTime);
+  return t || 11644; // fallback Magnini 03:14:04
+}
+function interpolateKmForAthlete(ath, elapsedSec) {
+  const cps = raceManager.checkpoints;
+  const pts = [];
+  for (const cp of cps) {
+    let tStr = ath.splits?.[cp.id];
+    if (!tStr || tStr.trim() === '') tStr = raceManager.defaultSplits2025?.splits?.[cp.id];
+    if (!tStr) tStr = cp.refSplit;
+    const sec = parseTimeToSec(tStr);
+    if (sec != null) pts.push({ km: cp.km, sec });
+  }
+  pts.sort((a,b)=>a.sec-b.sec);
+  if (!pts.length) return ath.km;
+  const dur = pts[pts.length-1].sec || getDurationSec();
+  const e = elapsedSec % (dur || 1);
+  for (let i=0;i<pts.length-1;i++) {
+    const a = pts[i], b = pts[i+1];
+    if (e >= a.sec && e <= b.sec) {
+      const span = b.sec - a.sec;
+      const r = span === 0 ? 0 : (e - a.sec)/span;
+      // RACE-04 hook: incline factor could multiply r here; ponytail leave hook
+      return a.km + r * (b.km - a.km);
+    }
+  }
+  if (e < pts[0].sec) return pts[0].km;
+  return pts[pts.length-1].km;
+}
+
 const clock = new THREE.Clock();
 
 function frame() {
@@ -776,12 +819,18 @@ function frame() {
   const dt = clock.getDelta();
 
   if (routeCurve) {
+    // advance global elapsed — RACE-02 simSpeed (1=real, 10-100 accelerated)
+    if (isAutoPlaying) {
+      const speed = settingsManager.settings.simulationSpeed ?? 1;
+      simElapsedSec = (simElapsedSec + dt * speed) % getDurationSec();
+    }
     const state = raceManager.getState();
     const athletes = state.athletes;
 
     athletes.forEach(ath => {
       if (isAutoPlaying && ath.status === 'running') {
-        ath.km = (ath.km + dt * 0.08) % raceManager.totalKm;
+        // RACE-03: replace linear ath.km += dt*0.08 with split interpolation
+        ath.km = interpolateKmForAthlete(ath, simElapsedSec);
       }
       const ratio = Math.min(0.999, Math.max(0.001, ath.km / raceManager.totalKm));
       const pt = routeCurve.getPointAt(ratio);
