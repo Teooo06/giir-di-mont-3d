@@ -315,6 +315,21 @@ function initSettingsUI() {
     updateSimUI(speed);
   });
 
+  // PERF-08: Target FPS 25/50 — ponytail: range 25-50 step 25, no 30
+  const fpsInput = document.querySelector('#ndi-fps-input');
+  const fpsLabel = document.querySelector('#ndi-fps-label');
+  if (fpsInput) {
+    fpsInput.value = s.ndiFps;
+    if (fpsLabel) fpsLabel.textContent = s.ndiFps;
+    fpsInput.addEventListener('input', () => {
+      const v = parseInt(fpsInput.value, 10);
+      const valid = (v === 25 || v === 50) ? v : 50;
+      if (fpsLabel) fpsLabel.textContent = valid;
+      settingsManager.update({ ndiFps: valid });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+
   // PERF-07: Graphics preset High/Balanced/Performance — ponytail
   const presetRadios = document.querySelectorAll('input[name="graphicsPreset"]');
   const customBox = document.querySelector('#custom-graphics-settings');
