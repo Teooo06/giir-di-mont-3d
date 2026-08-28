@@ -281,14 +281,14 @@ function createCheckpointLabelSprite(name, km, themeColor) {
   tex.magFilter = THREE.LinearFilter;
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: true });
   const sprite = new THREE.Sprite(mat);
-  sprite.layers.set(1); // solo NDI (browser usa HTML .label)
+  sprite.layers.set(0); // UI-04: unified sprite visible browser+NDI (was 1 NDI-only, HTML .label removed) — ponytail shortest diff
   sprite.scale.set(48, 15, 1); // 512:160 = 3.2:1, world units
   return sprite;
 }
 
 function clearCheckpoints() {
   labels.forEach(({ el, sprite }) => {
-    el.remove();
+    if (el) el.remove();
     if (sprite) {
       if (sprite.material.map) sprite.material.map.dispose();
       sprite.material.dispose();
@@ -308,15 +308,10 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
   marker.position.y += 3.5;
   checkpointGroup.add(marker);
 
-  const el = document.createElement('div');
-  el.className = 'label';
-  el.dataset.cpId = id;
-  el.dataset.isStart = isStart ? 'true' : 'false';
-  el.dataset.isFinish = isFinish ? 'true' : 'false';
-  el.innerHTML = `<span>${name}</span><small>${km} km · checkpoint</small>`;
-  document.querySelector('#app').append(el);
+  // UI-04: HTML .label removed — sprite unificato browser+NDI (layers 0)
+  const el = null;
 
-  // Sprite NDI-only (layer 1) — visibile solo su Program 16:9
+  // Sprite unificato (layer 0) — visibile sia browser che Program 16:9
   const sprite = createCheckpointLabelSprite(name, km, settingsManager.settings.themeColor);
   sprite.position.copy(worldPos).add(new THREE.Vector3(0, 18, 0));
   checkpointGroup.add(sprite);
@@ -696,13 +691,13 @@ function updateLabels() {
 
   labels.forEach(({ el, sprite, point, isStart, isFinish, marker }) => {
     if (isStart && !showStart) {
-      el.style.display = 'none';
+      if (el) el.style.display = 'none';
       if (marker) marker.visible = false;
       if (sprite) sprite.visible = false;
       return;
     }
     if (isFinish && !showFinish) {
-      el.style.display = 'none';
+      if (el) el.style.display = 'none';
       if (marker) marker.visible = false;
       if (sprite) sprite.visible = false;
       return;
@@ -710,11 +705,14 @@ function updateLabels() {
     if (marker) marker.visible = true;
     if (sprite) sprite.visible = true;
 
-    tempVec.copy(point).project(camera);
-    const visible = tempVec.z < 1 && tempVec.x > -1.15 && tempVec.x < 1.15 && tempVec.y > -1.2 && tempVec.y < 1.2;
-    el.style.display = visible ? 'block' : 'none';
-    el.style.left = `${(tempVec.x * 0.5 + 0.5) * innerWidth}px`;
-    el.style.top = `${(-tempVec.y * 0.5 + 0.5) * innerHeight}px`;
+    // UI-04: HTML label removed — keep projection guard for el=null
+    if (el) {
+      tempVec.copy(point).project(camera);
+      const visible = tempVec.z < 1 && tempVec.x > -1.15 && tempVec.x < 1.15 && tempVec.y > -1.2 && tempVec.y < 1.2;
+      el.style.display = visible ? 'block' : 'none';
+      el.style.left = `${(tempVec.x * 0.5 + 0.5) * innerWidth}px`;
+      el.style.top = `${(-tempVec.y * 0.5 + 0.5) * innerHeight}px`;
+    }
   });
 }
 
