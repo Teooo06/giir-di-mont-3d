@@ -565,8 +565,25 @@ function getSceneParams(name) {
   if (name === 'topdown') return { pos: new THREE.Vector3(0, 900, 10), target: new THREE.Vector3(0, 40, 0), label: 'VISTA SATELLITARE ZENITH' };
   return null;
 }
+// TRANS-03: variable duration per pair — ponytail: map, fallback 1.8s
+function getTransitionDuration(from, to) {
+  const key = `${from}->${to}`;
+  const map = {
+    'overview->runner': 2.5,
+    'runner->overview': 2.5,
+    'overview->checkpoint': 1.5,
+    'checkpoint->overview': 1.5,
+    'checkpoint->topdown': 1.5,
+    'topdown->checkpoint': 1.5,
+    'runner->checkpoint': 2.0,
+    'checkpoint->runner': 2.0,
+  };
+  return map[key] ?? 1.8;
+}
 function setScene(sceneName, opts = {}) {
-  const { instant = false, duration = 1.8 } = opts; // ponytail: calibration knob — duration 1.8s, tweak per scene if needed
+  const fromScene = activeScene;
+  const durFromMap = getTransitionDuration(fromScene, sceneName);
+  const { instant = false, duration = durFromMap } = opts; // ponytail: per-pair duration, opts overrides
   activeScene = sceneName;
   try { settingsManager.update({ activeScene: sceneName }); } catch {}
   document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === sceneName));
@@ -1141,29 +1158,33 @@ function frame() {
     programCamera.lookAt(ndiTarget);
     if (t >= 1) {
       ndiTween = null;
-      // TRANS-02: dequeue next if queued
+      // TRANS-02/03: dequeue next if queued — TRANS-03 variable duration per pair
       if (ndiQueue.length) {
         const next = ndiQueue.shift();
+        const from = activeScene;
         activeScene = next.sceneName;
         try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
         document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
         const modeEl = document.querySelector('#mode');
         if (modeEl) modeEl.textContent = next.params.label;
-        ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: 1.8 };
+        const dur = getTransitionDuration(from, next.sceneName);
+        ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: dur };
       }
     }
   } else {
     programCamera.copy(camera);
     ndiTarget.copy(controls.target);
-    // if queue has pending but no tween (edge case where setScene queued while tween was active but now null, already handled above)
+    // if queue has pending but no tween (edge case)
     if (ndiQueue.length) {
       const next = ndiQueue.shift();
+      const from = activeScene;
       activeScene = next.sceneName;
       try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
       document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
       const modeEl = document.querySelector('#mode');
       if (modeEl) modeEl.textContent = next.params.label;
-      ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: 1.8 };
+      const dur = getTransitionDuration(from, next.sceneName);
+      ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: dur };
     }
   }
   programCamera.aspect = 16 / 9;
