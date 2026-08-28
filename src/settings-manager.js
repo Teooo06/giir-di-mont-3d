@@ -10,7 +10,9 @@ export class SettingsManager {
       showElevationProfile: true,
       ndiFps: 50, // ponytail: 50 is target, calibration knob — if NDI p95 >16ms on target Mac, setFps(30) via /impostazioni (saves ~6.6ms budget slack, no code change)
       ndiSourceName: 'GIIR-3D-PROGRAM',
-      simulationSpeed: 1 // RACE-02: 1=Tempo Reale, 10-100=Accelerato — ponytail: one knob, localStorage via giir_settings_v1
+      simulationSpeed: 1, // RACE-02: 1=Tempo Reale, 10-100=Accelerato — ponytail: one knob, localStorage via giir_settings_v1
+      cameraPreset: 'default', // MAP-03: preset camera Close/Wide/Helicopter — ponytail: string key, persisted
+      activeScene: 'overview' // MAP-03: ultima scena selezionata — ponytail: recall on reload
     };
 
     this.settings = { ...this.defaultSettings };
