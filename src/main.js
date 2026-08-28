@@ -1187,6 +1187,9 @@ function frame() {
       ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: dur };
     }
   }
+  // TRANS-04: indicator visivo browser sopra profilo
+  const transEl = document.querySelector('#transition-indicator');
+  if (transEl) transEl.style.display = ndiTween ? 'block' : 'none';
   programCamera.aspect = 16 / 9;
   programCamera.updateProjectionMatrix();
 

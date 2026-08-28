@@ -453,6 +453,19 @@ body { margin: 0; overflow: hidden; }
   margin-top: 8px;
 }
 
+/* TRANS-04: indicator transizione sopra profilo */
+.transition-indicator {
+  left: 50%;
+  bottom: 88px;
+  transform: translateX(-50%);
+  background: rgba(223, 246, 84, 0.95);
+  color: #11170e;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font: 700 12px var(--font-primary);
+  letter-spacing: .08em;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
 /* Elevation Profile Overlay */
 .elevation-hud {
   left: 50%;
