@@ -1190,6 +1190,26 @@ function frame() {
   // TRANS-04: indicator visivo browser sopra profilo
   const transEl = document.querySelector('#transition-indicator');
   if (transEl) transEl.style.display = ndiTween ? 'block' : 'none';
+  // TRANS-05: tally giallo TRANSIZIONE vs rosso ON-PROGRAM
+  const tallyEl = document.querySelector('#tally-indicator');
+  const badgeEl = document.querySelector('#ndi-badge');
+  if (ndiTween) {
+    if (tallyEl) { tallyEl.className = 'tally-tag preview'; tallyEl.textContent = 'TRANSIZIONE'; }
+    if (badgeEl) badgeEl.className = 'ndi-badge preview';
+  } else if (tallyEl && tallyEl.textContent === 'TRANSIZIONE') {
+    // restore after transition — trigger status refresh
+    const s = ndiStreamer.status;
+    if (s && s.tally && s.tally.onProgram) {
+      tallyEl.className = 'tally-tag program'; tallyEl.textContent = 'ON-PROGRAM (LIVE)';
+      if (badgeEl) badgeEl.className = 'ndi-badge on-program';
+    } else if (s && s.tally && s.tally.onPreview) {
+      tallyEl.className = 'tally-tag preview'; tallyEl.textContent = 'ON-PREVIEW';
+      if (badgeEl) badgeEl.className = 'ndi-badge preview';
+    } else {
+      tallyEl.className = 'tally-tag'; tallyEl.textContent = s && s.active ? 'NDI TRASMETTE' : 'NDI STANDBY';
+      if (badgeEl) badgeEl.className = s && s.active ? 'ndi-badge live' : 'ndi-badge offline';
+    }
+  }
   programCamera.aspect = 16 / 9;
   programCamera.updateProjectionMatrix();
 
