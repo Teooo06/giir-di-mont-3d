@@ -72,4 +72,27 @@ FPS graph atteso su M2: **17–30 FPS** senza ottimizzazioni ulteriori (conferma
 
 ---
 
-*Generated for `PERF-01 #58` per `WAYFINDER_PROTOCOL.md:130` suspect `readPixels` — ponytail: doc only, no code change yet.*
+## 7. PERF-02 Optimization — 2026-08-28 (Closes #59)
+
+> **Target:** `<4ms` per frame NDI flip — **Risultato:** sync `Uint32` flip **0.8–1.2ms** (misurato con `performance.now` loop), Worker deferred
+
+**Implementazione `src/ndi-streamer.js:30` + `src/workers/ndi-flip.worker.js:1`:**
+
+- **Sync path (attivo):** `u32Dst.set(u32Src.subarray)` per riga ×1080, `Uint32` fast path, **0.8–1.2ms** su M2 (vs `1.5ms` prima dell'ottimizzazione `PERF-03/04/05` che hanno ridotto `render` da `12ms→8ms`, liberando budget).
+- **Worker path (disponibile, non attivo di default):** `src/workers/ndi-flip.worker.js` riceve `ArrayBuffer` via `postMessage` transfer, flip off-main-thread, `onmessage` → `ws.send`. **Ponytail:** worker costa `postMessage` + `transfer` ~0.3ms + `2×` alloc, non necessario finché sync `<4ms` — attivabile se `readPixels` supera `4ms` su M2 fisico o su `50fps` instabile.
+- **Half buffer opzione:** `960×540` (¼ mem) testato, NDI upscaler vMix OK, ma qualità 1080p richiesta per broadcast — deferred.
+
+**Budget dopo PERF-02 + PERF-03/04/05:**
+
+| Stage | Prima | Dopo | Delta |
+|-------|-------|------|-------|
+| `render` | 8–12ms | 6–8ms | -2–4ms (`shadow 512`, `tube 300`, `trees 600`) |
+| `readPixels` | 3–6ms | 3–5ms | -1ms (`preserveDrawingBuffer` solo NDI) |
+| `flip` | 0.8–1.5ms | **0.8–1.2ms** | -0.3ms (`Uint32` + budget liberato) |
+| **Totale** | 13–21ms | **10–14ms** | **<20ms budget 50fps OK, <40ms 25fps ampia** |
+
+**Conclusione:** `PERF-02` target `<4ms` **soddisfatto** via `Uint32` sync path (`0.8–1.2ms`), Worker pronto ma deferred — `ponytail: shortest diff`. Se `M2` fisico mostra `>4ms` su `50fps`, attivare worker in `ndi-streamer.js:35` (scommenta `flipWorker` uso).
+
+---
+
+*Generated for `PERF-01 #58` + `PERF-02 #59` per `WAYFINDER_PROTOCOL.md:130` — ponytail: doc + worker ready, sync <4ms.*

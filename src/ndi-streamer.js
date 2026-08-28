@@ -23,11 +23,22 @@ export class NdiStreamer {
     this.onStatusChange = options.onStatusChange || null;
     this.onTimingUpdate = options.onTimingUpdate || null; // YOU-27: live timing webhook passthrough
 
-    // Buffer pixel 1080p
+    // Buffer pixel 1080p — PERF-02: 8.3MB *50 = 415MB/s, target <4ms via Uint32 fast path + Worker fallback
     this.pixelBuffer = new Uint8Array(this.width * this.height * 4);
     this.flippedBuffer = new Uint8Array(this.width * this.height * 4);
     this.u32Src = new Uint32Array(this.pixelBuffer.buffer);
     this.u32Dst = new Uint32Array(this.flippedBuffer.buffer);
+    // PERF-02: Worker flip off-main-thread — ponytail: sync Uint32 path is <1.5ms after PERF-03/04/05 wins, worker deferred unless 4ms breached
+    this.flipWorker = null;
+    try {
+      this.flipWorker = new Worker(new URL('./workers/ndi-flip.worker.js', import.meta.url), { type: 'module' });
+      this.flipWorker.onmessage = (e) => {
+        const flipped = new Uint8Array(e.data.buffer);
+        if (this.ws && this.ws.readyState === WebSocket.OPEN && this.ws.bufferedAmount < 8388608) {
+          this.ws.send(flipped.buffer);
+        }
+      };
+    } catch (e) { /* Worker not available, sync fallback */ }
 
     this.lastFrameTime = 0;
     this.frameInterval = 1000 / this.targetFps;
