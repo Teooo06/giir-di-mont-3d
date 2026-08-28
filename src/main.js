@@ -191,7 +191,9 @@ function generateAlpineForest() {
 // ----------------------------------------------------
 let rawTrackPoints = [];
 let routeCurve = null;
-let routeLine = null;
+let routeLine = null; // kept for compat — ponytail: alias to traveled
+let routeLineTraveled = null;
+let routeLineRemaining = null;
 let labels = [];
 const checkpointGroup = new THREE.Group();
 scene.add(checkpointGroup);
@@ -338,13 +340,43 @@ function rebuildTrack3D() {
     return v;
   });
 
-  if (routeLine) scene.remove(routeLine);
+  // PROG-01: bicolore — ponytail: 2 TubeGeometry split at leader ratio, stdlib THREE only
+  if (routeLineTraveled) { scene.remove(routeLineTraveled); routeLineTraveled.geometry.dispose(); }
+  if (routeLineRemaining) { scene.remove(routeLineRemaining); routeLineRemaining.geometry.dispose(); }
+  if (routeLine) { scene.remove(routeLine); if (routeLine.geometry) routeLine.geometry.dispose(); routeLine = null; }
 
   routeCurve = new THREE.CatmullRomCurve3(worldPoints, false, 'centripetal');
 
-  const tubeGeo = new THREE.TubeGeometry(routeCurve, 400, 1.1, 7, false); // ponytail: 800→400 segments, ~50% fewer verts, visual diff negligible at broadcast distance; threejs-geometry: choose appropriate segment counts
-  routeLine = new THREE.Mesh(
-    tubeGeo,
+  // split at leader progress
+  const leader = raceManager.getSelectedAthlete();
+  const leaderRatio = leader ? Math.min(0.999, Math.max(0.001, leader.km / raceManager.totalKm)) : 0;
+  // find split index in worldPoints proportional to ratio
+  const splitIdx = Math.max(1, Math.min(worldPoints.length - 2, Math.round(worldPoints.length * leaderRatio)));
+  const traveledPts = worldPoints.slice(0, splitIdx + 1);
+  // ensure continuity: add interpolated point at exact ratio on curve if not aligned
+  try {
+    const exactPt = routeCurve.getPointAt(leaderRatio);
+    if (traveledPts.length) traveledPts[traveledPts.length - 1] = exactPt.clone();
+  } catch {}
+  const remainingPts = worldPoints.slice(splitIdx);
+  try {
+    const exactPt2 = routeCurve.getPointAt(leaderRatio);
+    if (remainingPts.length) remainingPts[0] = exactPt2.clone();
+  } catch {}
+  // ensure at least 2 points per segment
+  if (traveledPts.length < 2) traveledPts.push(traveledPts[0].clone().add(new THREE.Vector3(0.1,0,0)));
+  if (remainingPts.length < 2) remainingPts.push(remainingPts[0].clone().add(new THREE.Vector3(0.1,0,0)));
+
+  const traveledCurve = new THREE.CatmullRomCurve3(traveledPts, false, 'centripetal');
+  const remainingCurve = new THREE.CatmullRomCurve3(remainingPts, false, 'centripetal');
+  const traveledSegs = Math.max(8, Math.round(400 * leaderRatio));
+  const remainingSegs = Math.max(8, 400 - traveledSegs);
+
+  const traveledGeo = new THREE.TubeGeometry(traveledCurve, traveledSegs, 1.1, 7, false);
+  const remainingGeo = new THREE.TubeGeometry(remainingCurve, remainingSegs, 1.1, 7, false);
+
+  routeLineTraveled = new THREE.Mesh(
+    traveledGeo,
     new THREE.MeshStandardMaterial({
       color: '#fff5c0',
       emissive: settingsManager.settings.themeColor,
@@ -352,7 +384,19 @@ function rebuildTrack3D() {
       roughness: 0.3
     })
   );
-  scene.add(routeLine);
+  routeLineRemaining = new THREE.Mesh(
+    remainingGeo,
+    new THREE.MeshStandardMaterial({
+      color: '#8a8a8a',
+      transparent: true,
+      opacity: 0.5,
+      roughness: 0.8,
+      emissive: '#000000'
+    })
+  );
+  scene.add(routeLineTraveled);
+  scene.add(routeLineRemaining);
+  routeLine = routeLineTraveled; // compat alias
 
   clearCheckpoints();
   raceManager.checkpoints.forEach(cp => {
