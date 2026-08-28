@@ -624,6 +624,45 @@ function updateRiderCard() {
   if (sliderEl && document.activeElement !== sliderEl) {
     sliderEl.value = athlete.km;
   }
+  // RACE-06: tempi dettagliati — ponytail: 4 calcs, no lib
+  const opElapsed = document.querySelector('#op-elapsed');
+  const opRemaining = document.querySelector('#op-remaining');
+  const opPace = document.querySelector('#op-pace');
+  const opPercent = document.querySelector('#op-percent');
+  if (opElapsed) opElapsed.textContent = formatSecToTime(simElapsedSec);
+  if (opRemaining) {
+    const rem = Math.max(0, getDurationSec() - simElapsedSec);
+    opRemaining.textContent = `-${formatSecToTime(rem)}`;
+  }
+  if (opPercent) opPercent.textContent = `${((athlete.km / raceManager.totalKm)*100).toFixed(1)}%`;
+  if (opPace) {
+    // pace of current segment (min/km)
+    let paceTxt = '-- min/km';
+    try {
+      const cps = raceManager.checkpoints;
+      const pts = [];
+      for (const cp of cps) {
+        const sec = parseTimeToSec(raceManager.defaultSplits2025?.splits?.[cp.id] || cp.refSplit);
+        if (sec != null) pts.push({ km: cp.km, sec });
+      }
+      pts.sort((a,b)=>a.sec-b.sec);
+      const e = simElapsedSec % (pts[pts.length-1]?.sec || getDurationSec());
+      for (let i=0;i<pts.length-1;i++) {
+        if (e >= pts[i].sec && e <= pts[i+1].sec) {
+          const dKm = pts[i+1].km - pts[i].km;
+          const dSec = pts[i+1].sec - pts[i].sec;
+          if (dKm > 0 && dSec > 0) {
+            const minPerKm = (dSec/60) / dKm;
+            const m = Math.floor(minPerKm);
+            const s = String(Math.round((minPerKm - m)*60)).padStart(2,'0');
+            paceTxt = `${m}:${s} min/km`;
+          }
+          break;
+        }
+      }
+    } catch {}
+    opPace.textContent = paceTxt;
+  }
 
   let currentEle = 960;
   if (routeCurve) {

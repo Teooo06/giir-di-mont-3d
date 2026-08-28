@@ -159,6 +159,16 @@
           </div>
           <b id="progress">0.0 km</b>
         </div>
+        <!-- RACE-06: tempi dettagliati — ponytail: 4 span, native monospace, no lib -->
+        <div class="rider-stats" id="rider-stats" style="display:flex; gap:10px; font:600 11px var(--font-primary, monospace); margin:4px 0 2px; color:var(--text-muted); flex-wrap:wrap;">
+          <span id="op-elapsed" title="Tempo trascorso">00:00:00</span>
+          <span>·</span>
+          <span id="op-remaining" title="Tempo rimanente">-03:14:04</span>
+          <span>·</span>
+          <span id="op-pace" title="Passo attuale">-- min/km</span>
+          <span>·</span>
+          <span id="op-percent" title="Progresso">0.0%</span>
+        </div>
         <div class="live-scrubber">
           <input id="athlete-km-slider" type="range" min="0" max="32" step="0.1" value="0" />
         </div>
