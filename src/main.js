@@ -82,6 +82,10 @@ const settingsManager = new SettingsManager({
       terrainManager.setVerticalExaggeration(settings.verticalExaggeration);
       if (rawTrackPoints.length > 0) rebuildTrack3D();
     }
+    // PERF-08: NDI FPS 25/50
+    if (settings.ndiFps && ndiStreamer && settings.ndiFps !== ndiStreamer.targetFps) {
+      ndiStreamer.setFps(settings.ndiFps);
+    }
   }
 });
 
