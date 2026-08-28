@@ -146,6 +146,8 @@ try {
 // 3. GENERAZIONE ALBERELLI 3D STILIZZATI (MICRO FORESTE ALPINE)
 // ----------------------------------------------------
 let treesMesh = null;
+let treeInstances = []; // UI-1: base data for zoom-adaptive scaling — ponytail: store pos+rot+baseScale, 600 entries ~ cheap
+let lastZoomScale = 1;
 function generateAlpineForest() {
   if (treesMesh) {
     scene.remove(treesMesh);
@@ -164,6 +166,7 @@ function generateAlpineForest() {
   treesMesh = new THREE.InstancedMesh(treeGeo, treeMat, count);
   const dummy = new THREE.Object3D();
   let planted = 0;
+  treeInstances = [];
 
   const minX = -480, maxX = 480;
   const minZ = -400, maxZ = 400;
@@ -176,11 +179,13 @@ function generateAlpineForest() {
     const realEle = (y / (0.1 * settingsManager.settings.verticalExaggeration)) + terrainManager.baseElevation;
     if (realEle > 650 && realEle < 1650) {
       const scale = 0.55 + Math.random() * 0.75;
+      const rotY = Math.random() * Math.PI * 2;
       dummy.position.set(x, y - 0.2, z);
       dummy.scale.set(scale, scale, scale);
-      dummy.rotation.y = Math.random() * Math.PI * 2;
+      dummy.rotation.y = rotY;
       dummy.updateMatrix();
       treesMesh.setMatrixAt(planted, dummy.matrix);
+      treeInstances.push({ x, y: y - 0.2, z, rotY, baseScale: scale });
       planted++;
     }
   }
@@ -1138,7 +1143,7 @@ function frame() {
 
   controls.update();
 
-  // Scala elementi 3D inversamente allo zoom (più vicino = più piccoli) — solo scala locale, mai posizione
+  // UI-1: zoom-adaptive scaling for all markers — ponytail: clamp 0.45-1.0, markers/sprites/dots + trees per-instance; track radius fixed (1.1) for broadcast readability
   const camDist = camera.position.distanceTo(controls.target);
   const zoomScale = THREE.MathUtils.clamp(camDist / 750, 0.45, 1.0);
   labels.forEach(({ marker, sprite, dot }) => {
@@ -1149,8 +1154,22 @@ function frame() {
   athleteMeshes.forEach(({ sprite }) => {
     if (sprite) sprite.scale.set(28 * zoomScale, 28 * zoomScale, 1);
   });
-  // NON scalare routeLine e treesMesh come mesh intera (sposterebbe la geometria sotto la montagna)
-  // Per tracciato e alberi lo scaling va fatto su geometria/instanza, per ora lasciato a 1 per stabilità
+  // UI-1: trees zoom-adaptive — per-instance scale = baseScale*zoomScale, throttled to delta>0.02 (avoids 600 matrix recomposes every frame)
+  if (treesMesh && treeInstances.length && Math.abs(zoomScale - lastZoomScale) > 0.02) {
+    lastZoomScale = zoomScale;
+    const d = new THREE.Object3D();
+    for (let i = 0; i < treeInstances.length; i++) {
+      const t = treeInstances[i];
+      d.position.set(t.x, t.y, t.z);
+      const s = t.baseScale * zoomScale;
+      d.scale.set(s, s, s);
+      d.rotation.y = t.rotY;
+      d.updateMatrix();
+      treesMesh.setMatrixAt(i, d.matrix);
+    }
+    treesMesh.instanceMatrix.needsUpdate = true;
+  }
+  // UI-1 track: ponytail: fixed radius 1.1 — thin @45% would be 0.5 → invisible at NDI 1080p distance; rebuild TubeGeometry only if director requests variable width
 
   // TRANS-01/02: NDI-only + queue — tween moves only programCamera, browser holds
   if (ndiTween) {
