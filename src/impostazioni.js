@@ -166,6 +166,42 @@ document.querySelector('#csv-input')?.addEventListener('change', async (e) => {
   }
 });
 
+// MAP-04: Export/Import config JSON — ponytail: localStorage giir_settings_v1 + giir_race_data_v2
+document.querySelector('#btn-export-config')?.addEventListener('click', () => {
+  const data = {
+    settings: JSON.parse(localStorage.getItem('giir_settings_v1') || '{}'),
+    race: JSON.parse(localStorage.getItem('giir_race_data_v2') || '{}'),
+    exportedAt: new Date().toISOString(),
+    version: 1
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `giir-config-${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+document.querySelector('#btn-import-config')?.addEventListener('click', () => {
+  document.querySelector('#config-input')?.click();
+});
+document.querySelector('#config-input')?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (data.settings) localStorage.setItem('giir_settings_v1', JSON.stringify(data.settings));
+    if (data.race) localStorage.setItem('giir_race_data_v2', JSON.stringify(data.race));
+    alert(`Config importata da ${file.name} — ricarica pagina per applicare`);
+    location.reload();
+  } catch (err) {
+    alert(`Errore import: ${err.message}`);
+  } finally {
+    e.target.value = '';
+  }
+});
+
 // Elimina atleta
 document.querySelector('#btn-delete-athlete')?.addEventListener('click', () => {
   const ath = raceManager.getSelectedAthlete();
