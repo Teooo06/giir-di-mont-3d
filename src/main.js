@@ -537,8 +537,14 @@ const camPresets = {
   default: { dist: 95, height: 55 }
 };
 let currentCamPreset = settingsManager.settings.cameraPreset || 'default';
+let camPresetTween = null; // CAM-06: 1.8s ease for preset switches
+let lastCamPreset = currentCamPreset;
 function setCamPreset(name) {
   if (!camPresets[name]) return;
+  if (name === currentCamPreset) return;
+  // capture start for 1.8s tween
+  camPresetTween = { startPos: camera.position.clone(), elapsed: 0, duration: 1.8 };
+  lastCamPreset = currentCamPreset;
   currentCamPreset = name;
   try { settingsManager.update({ cameraPreset: name }); } catch {}
 }
@@ -1023,8 +1029,17 @@ function frame() {
         const slopeDelta = ptSlopeProbe.y - pt.y;
         const camHeight = baseHeight + THREE.MathUtils.clamp(-slopeDelta * 2.5, -12, 18); // adaptive range
         const idealCamPos = pt.clone().add(tangent.clone().multiplyScalar(-camDistBack)).add(new THREE.Vector3(0, camHeight, 0));
-        const camLerp = 1 - Math.exp(-4 * dt); // frame-rate independent
-        camera.position.lerp(idealCamPos, camLerp);
+        // CAM-06: preset tween 1.8s easeInOutCubic if active, else continuous follow lerp
+        if (camPresetTween) {
+          camPresetTween.elapsed += dt;
+          let t = Math.min(1, camPresetTween.elapsed / camPresetTween.duration);
+          const e = easeInOutCubic(t);
+          camera.position.lerpVectors(camPresetTween.startPos, idealCamPos, e);
+          if (t >= 1) camPresetTween = null;
+        } else {
+          const camLerp = 1 - Math.exp(-4 * dt); // frame-rate independent
+          camera.position.lerp(idealCamPos, camLerp);
+        }
 
         // CAM-02: raycast collision — keep 15m above terrain, lateral nudge if too low
         const terrainY = terrainManager.getElevationAtWorld(camera.position.x, camera.position.z);
