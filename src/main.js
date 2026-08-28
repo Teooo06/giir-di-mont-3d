@@ -218,6 +218,7 @@ function markerTexture(number, color = '#dff654') {
   return new THREE.CanvasTexture(c);
 }
 
+// PROG-03: Rimuovere indicatore leader grande — ponytail: kept only small 28×28 sprite+bib, no large sphere; large sphere+bib deleted, keeps InstancedMesh batch cheap
 function getOrCreateAthleteMesh(athlete) {
   if (athleteMeshes.has(athlete.id)) {
     return athleteMeshes.get(athlete.id);
@@ -226,7 +227,7 @@ function getOrCreateAthleteMesh(athlete) {
     map: markerTexture(athlete.bib, athlete.color),
     depthTest: false
   }));
-  sprite.scale.set(28, 28, 1);
+  sprite.scale.set(28, 28, 1); // ponytail: calibration knob — 28 world units, match UI-05 checkpoint sprite scale logic
   scene.add(sprite);
 
   const light = new THREE.PointLight(athlete.color, 3.5, 75);
