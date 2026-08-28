@@ -319,7 +319,9 @@ function rebuildTrack3D() {
 
   const worldPoints = rawTrackPoints.map(p => {
     const v = terrainManager.coordToWorld(p.lat, p.lon, p.ele);
-    v.y += 1.8;
+    // YOU-22: terrain adherence — ponytail: max(track ele, DEM+offset) prevents sinking; one line, no raycast
+    const ground = terrainManager.getElevationAtWorld(v.x, v.z);
+    v.y = Math.max(v.y, ground + 1.8); // calibration knob: 1.8 world units (~14m real), bump to 2.5 if steep faces still clip
     return v;
   });
 
