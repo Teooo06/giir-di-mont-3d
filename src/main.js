@@ -525,7 +525,7 @@ document.querySelector('#gpx-input')?.addEventListener('change', async (e) => {
 // ----------------------------------------------------
 // 5. REGIA SCENE & TELECAMERA
 // ----------------------------------------------------
-let activeScene = 'overview';
+let activeScene = settingsManager.settings.activeScene || 'overview';
 let isAutoPlaying = true;
 const targetPos = new THREE.Vector3();
 
@@ -545,6 +545,7 @@ function getSceneParams(name) {
 function setScene(sceneName, opts = {}) {
   const { instant = false, duration = 1.8 } = opts; // ponytail: calibration knob — duration 1.8s, tweak per scene if needed
   activeScene = sceneName;
+  try { settingsManager.update({ activeScene: sceneName }); } catch {}
   document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === sceneName));
   const params = getSceneParams(sceneName);
   if (!params) return;
