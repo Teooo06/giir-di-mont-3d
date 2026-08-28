@@ -46,8 +46,7 @@ body { margin: 0; overflow: hidden; }
 /* Nav Tabs */
 .nav-tabs {
   top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 24px;
   display: flex;
   background: rgba(12, 17, 20, 0.92);
   border: 1px solid var(--border-subtle);
