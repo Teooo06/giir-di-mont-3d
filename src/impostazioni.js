@@ -251,6 +251,34 @@ function initSettingsUI() {
     });
   }
 
+  // RACE-02: Velocità Simulazione — ponytail: plain select+range, one stored int, BroadcastChannel sync
+  const simMode = document.querySelector('#sim-speed-mode');
+  const simSlider = document.querySelector('#sim-speed-slider');
+  const simLabel = document.querySelector('#sim-speed-label');
+  const simVal = document.querySelector('#sim-speed-val');
+  const updateSimUI = (speed) => {
+    const isReal = speed === 1;
+    if (simMode) simMode.value = isReal ? 'realtime' : 'accelerated';
+    if (simSlider) { simSlider.disabled = isReal; simSlider.value = isReal ? 10 : speed; }
+    if (simLabel) simLabel.textContent = isReal ? 'Tempo Reale (1×)' : `Accelerato (${speed}×)`;
+    if (simVal) simVal.textContent = isReal ? '1×' : `${speed}×`;
+  };
+  updateSimUI(s.simulationSpeed ?? 1);
+  if (simMode) simMode.addEventListener('change', () => {
+    const speed = simMode.value === 'realtime' ? 1 : parseInt(simSlider?.value || '10', 10);
+    settingsManager.update({ simulationSpeed: speed });
+    syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    updateSimUI(speed);
+  });
+  if (simSlider) simSlider.addEventListener('input', () => {
+    const speed = parseInt(simSlider.value, 10);
+    // auto-switch to accelerated if user drags slider
+    if (simMode) simMode.value = 'accelerated';
+    settingsManager.update({ simulationSpeed: speed });
+    syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    updateSimUI(speed);
+  });
+
   // Profilo Altimetrico
   const chkProf = document.querySelector('#chk-prof-overlay');
   if (chkProf) {

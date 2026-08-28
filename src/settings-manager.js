@@ -9,7 +9,8 @@ export class SettingsManager {
       showCheckpoints3D: true,
       showElevationProfile: true,
       ndiFps: 50, // ponytail: 50 is target, calibration knob — if NDI p95 >16ms on target Mac, setFps(30) via /impostazioni (saves ~6.6ms budget slack, no code change)
-      ndiSourceName: 'GIIR-3D-PROGRAM'
+      ndiSourceName: 'GIIR-3D-PROGRAM',
+      simulationSpeed: 1 // RACE-02: 1=Tempo Reale, 10-100=Accelerato — ponytail: one knob, localStorage via giir_settings_v1
     };
 
     this.settings = { ...this.defaultSettings };
