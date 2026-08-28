@@ -997,7 +997,11 @@ function frame() {
         const pt = routeCurve.getPointAt(ratio);
         const tangent = routeCurve.getTangentAt(ratio).normalize();
         const camDistBack = 95; // calibration knob dist behind leader
-        const camHeight = 55; // calibration knob height
+        // CAM-04: height adaptive to slope — ponytail: Δele between verts, downhill +height, uphill -height
+        const slopeProbeRatio = Math.min(0.999, ratio + 0.005);
+        const ptSlopeProbe = routeCurve.getPointAt(slopeProbeRatio);
+        const slopeDelta = ptSlopeProbe.y - pt.y;
+        const camHeight = 55 + THREE.MathUtils.clamp(-slopeDelta * 2.5, -12, 18); // 43-73 range
         const idealCamPos = pt.clone().add(tangent.clone().multiplyScalar(-camDistBack)).add(new THREE.Vector3(0, camHeight, 0));
         const camLerp = 1 - Math.exp(-4 * dt); // frame-rate independent
         camera.position.lerp(idealCamPos, camLerp);
