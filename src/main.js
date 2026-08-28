@@ -808,7 +808,7 @@ function interpolateKmForAthlete(ath, elapsedSec) {
     if (!tStr || tStr.trim() === '') tStr = raceManager.defaultSplits2025?.splits?.[cp.id];
     if (!tStr) tStr = cp.refSplit;
     const sec = parseTimeToSec(tStr);
-    if (sec != null) pts.push({ km: cp.km, sec });
+    if (sec != null) pts.push({ km: cp.km, sec, ele: cp.ele });
   }
   pts.sort((a,b)=>a.sec-b.sec);
   if (!pts.length) return ath.km;
@@ -818,8 +818,15 @@ function interpolateKmForAthlete(ath, elapsedSec) {
     const a = pts[i], b = pts[i+1];
     if (e >= a.sec && e <= b.sec) {
       const span = b.sec - a.sec;
-      const r = span === 0 ? 0 : (e - a.sec)/span;
-      // RACE-04 hook: incline factor could multiply r here; ponytail leave hook
+      let r = span === 0 ? 0 : (e - a.sec)/span;
+      // RACE-04: velocità variabile salita/discesa — ponytail: exponent factor on r, calibration knobs below
+      const eleDelta = (b.ele ?? 0) - (a.ele ?? 0);
+      // factor >1 = salita più lenta (r^factor < r), factor <1 = discesa più veloce
+      // ponytail: 1.25 salita >80m dislivello, 0.85 discesa <-80m, altrimenti 1.0 lineare; tweak 80m/1.25/0.85 if feels off
+      let factor = 1.0;
+      if (eleDelta > 80) factor = 1.25;
+      else if (eleDelta < -80) factor = 0.85;
+      if (factor !== 1.0) r = Math.pow(r, factor);
       return a.km + r * (b.km - a.km);
     }
   }
