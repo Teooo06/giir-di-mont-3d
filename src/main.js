@@ -295,13 +295,14 @@ function createCheckpointLabelSprite(name, km, themeColor) {
 }
 
 function clearCheckpoints() {
-  labels.forEach(({ el, sprite }) => {
+  labels.forEach(({ el, sprite, marker, dot }) => {
     if (el) el.remove();
     if (sprite) {
       if (sprite.material.map) sprite.material.map.dispose();
       sprite.material.dispose();
-      // rimosso da checkpointGroup via clear()
     }
+    if (marker) { if (marker.geometry) marker.geometry.dispose(); if (marker.material) marker.material.dispose(); }
+    if (dot) { if (dot.geometry) dot.geometry.dispose(); if (dot.material) dot.material.dispose(); }
   });
   checkpointGroup.clear();
   labels = [];
@@ -315,6 +316,15 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
   marker.position.copy(worldPos);
   marker.position.y += 3.5;
   checkpointGroup.add(marker);
+
+  // PROG-04: checkpoint marker piccolo r=1.0 lungo traccia — sempre visibile indipendente da leader — ponytail: MeshBasicMaterial low cost, no shadow
+  const dot = new THREE.Mesh(
+    new THREE.SphereGeometry(1.0, 10, 8),
+    new THREE.MeshBasicMaterial({ color: settingsManager.settings.themeColor })
+  );
+  dot.position.copy(worldPos);
+  dot.position.y += 1.2; // leggermente sopra traccia
+  checkpointGroup.add(dot);
 
   // UI-04: HTML .label removed — sprite unificato browser+NDI (layers 0)
   const el = null;
@@ -331,6 +341,7 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
     isStart,
     isFinish,
     marker,
+    dot, // PROG-04: keep ref for zoomScale, never hidden by showStart/showFinish
     point: worldPos.clone().add(new THREE.Vector3(0, 10, 0))
   });
 }
@@ -825,7 +836,9 @@ function updateLabels() {
   const showStart = currentKm < 16.0;
   const showFinish = currentKm >= 16.0;
 
-  labels.forEach(({ el, sprite, point, isStart, isFinish, marker }) => {
+  labels.forEach(({ el, sprite, point, isStart, isFinish, marker, dot }) => {
+    // PROG-04 dot stays always visible independent of leader
+    if (dot) dot.visible = true;
     if (isStart && !showStart) {
       if (el) el.style.display = 'none';
       if (marker) marker.visible = false;
@@ -1049,9 +1062,10 @@ function frame() {
   // Scala elementi 3D inversamente allo zoom (più vicino = più piccoli) — solo scala locale, mai posizione
   const camDist = camera.position.distanceTo(controls.target);
   const zoomScale = THREE.MathUtils.clamp(camDist / 750, 0.45, 1.0);
-  labels.forEach(({ marker, sprite }) => {
+  labels.forEach(({ marker, sprite, dot }) => {
     if (marker) marker.scale.setScalar(zoomScale);
     if (sprite) sprite.scale.set(80 * zoomScale, 25 * zoomScale, 1); // UI-05 match 80×25
+    if (dot) dot.scale.setScalar(zoomScale); // PROG-04 keep dot proportional
   });
   athleteMeshes.forEach(({ sprite }) => {
     if (sprite) sprite.scale.set(28 * zoomScale, 28 * zoomScale, 1);
