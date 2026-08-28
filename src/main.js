@@ -601,9 +601,9 @@ function setScene(sceneName, opts = {}) {
     ndiQueue.push({ sceneName, params });
     return;
   }
-  // TRANS-01: NDI-only — tween moves only programCamera (NDI), browser holds fixed until completion
+  // TRANS-01: tween both NDI programCamera AND browser camera (Closes #145)
   ndiTween = { startPos: programCamera.position.clone(), endPos: params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
-  // browser camera stays — no camTween, keeps current position/target
+  camTween = { startPos: camera.position.clone(), endPos: params.pos.clone(), startTarget: controls.target.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
 }
 
 document.querySelectorAll('[data-scene]').forEach(b => {
@@ -1056,7 +1056,7 @@ function frame() {
         const slopeProbeRatio = Math.min(0.999, ratio + 0.005);
         const ptSlopeProbe = routeCurve.getPointAt(slopeProbeRatio);
         const slopeDelta = ptSlopeProbe.y - pt.y;
-        const camHeight = baseHeight + THREE.MathUtils.clamp(-slopeDelta * 2.5, -12, 18); // adaptive range
+        const camHeight = baseHeight + 3 + THREE.MathUtils.clamp(-slopeDelta * 2.5, -12, 18); // +3 base, adaptive range (Closes #144)
         const idealCamPos = pt.clone().add(tangent.clone().multiplyScalar(-camDistBack)).add(new THREE.Vector3(0, camHeight, 0));
         // CAM-06: preset tween 1.8s easeInOutCubic if active, else continuous follow lerp
         if (camPresetTween) {
@@ -1066,7 +1066,7 @@ function frame() {
           camera.position.lerpVectors(camPresetTween.startPos, idealCamPos, e);
           if (t >= 1) camPresetTween = null;
         } else {
-          const camLerp = 1 - Math.exp(-4 * dt); // frame-rate independent
+          const camLerp = 1 - Math.exp(-2 * dt); // smoother follow (Closes #144)
           camera.position.lerp(idealCamPos, camLerp);
         }
 
@@ -1080,12 +1080,12 @@ function frame() {
         }
 
         // CAM-03: look-ahead 15-20m (spec) — ponytail: 18m via routeCurve tangent, calibration knob
-        const leadKm = 0.018; // 18m ahead on track — satisfies 15-20m spec; bump to 0.03 for stronger anticipation
-        const deadZone = 1.0; // world units ≈10m — ponytail: dead-zone threshold, prevents jitter when athlete paused/nudged
+        const leadKm = 0.025; // 25m ahead — smoother look-ahead (Closes #144)
+        const deadZone = 3.0; // world units ~30m — larger deadzone reduces jitter (Closes #144)
         const ratioAhead = Math.min(0.999, Math.max(0.001, (selectedAthlete.km + leadKm) / raceManager.totalKm));
         const ptAhead = routeCurve.getPointAt(ratioAhead);
         if (targetPos.distanceTo(ptAhead) > deadZone) {
-          targetPos.lerp(ptAhead, 0.04);
+          targetPos.lerp(ptAhead, 0.02); // slower target follow = less jitter
         }
         controls.target.copy(targetPos);
       }
