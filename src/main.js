@@ -229,22 +229,16 @@ function markerTexture(number, color = '#dff654') {
   return new THREE.CanvasTexture(c);
 }
 
-// PROG-03: Rimuovere indicatore leader grande — ponytail: kept only small 28×28 sprite+bib, no large sphere; large sphere+bib deleted, keeps InstancedMesh batch cheap
+// PROG-03: Rimuovere indicatore leader grande — no sprite, only light (Closes #150)
 function getOrCreateAthleteMesh(athlete) {
   if (athleteMeshes.has(athlete.id)) {
     return athleteMeshes.get(athlete.id);
   }
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: markerTexture(athlete.bib, athlete.color),
-    depthTest: false
-  }));
-  sprite.scale.set(28, 28, 1); // ponytail: calibration knob — 28 world units, match UI-05 checkpoint sprite scale logic
-  scene.add(sprite);
-
-  const light = new THREE.PointLight(athlete.color, 3.5, 75);
+  // No sprite — track rainbow shows progress. Only ambient light per athlete.
+  const light = new THREE.PointLight(athlete.color, 2.0, 60);
   scene.add(light);
 
-  const entry = { sprite, light };
+  const entry = { sprite: null, light };
   athleteMeshes.set(athlete.id, entry);
   return entry;
 }
@@ -1068,7 +1062,7 @@ function frame() {
       const pt = routeCurve.getPointAt(ratio);
 
       const entry = getOrCreateAthleteMesh(ath);
-      entry.sprite.position.copy(pt).add(new THREE.Vector3(0, 14 + Math.sin(performance.now() * 0.005) * 1.2, 0));
+      if (entry.sprite) entry.sprite.position.copy(pt).add(new THREE.Vector3(0, 14 + Math.sin(performance.now() * 0.005) * 1.2, 0));
       entry.light.position.copy(pt).add(new THREE.Vector3(0, 10, 0));
     });
     // PROG-02: refresh bicolor every 5 frames — ponytail: throttled, deadband 0.2% avoids rebuild jitter
