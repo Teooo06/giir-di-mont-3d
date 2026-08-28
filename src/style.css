@@ -742,7 +742,21 @@ body.clean .ndi-frame { display: none; }
   letter-spacing: .1em;
   backdrop-filter: blur(8px);
 }
-body.clean .hud { display: none; }
+/* UI-07: clean view trasparenza graduata — ponytail: opacity instead of display:none */
+body.clean .nav-tabs,
+body.clean .ndi-bar {
+  opacity: 0.15;
+  pointer-events: none;
+}
+body.clean .operator,
+body.clean .elevation-hud {
+  opacity: 0.3;
+  pointer-events: none;
+}
+body.clean .side-panel,
+body.clean .ndi-frame {
+  display: none !important;
+}
 body.clean .clean-notice { display: block; }
 
 @media (max-width: 900px) {
