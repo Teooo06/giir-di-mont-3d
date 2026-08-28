@@ -553,6 +553,7 @@ function setCamPreset(name) {
 let camTween = null; // { startPos, endPos, startTarget, endTarget, elapsed, duration }
 let ndiTween = null; // TRANS-01: NDI-only tween — ponytail: separate from camTween
 const ndiTarget = new THREE.Vector3(0, 70, 0);
+let ndiQueue = []; // TRANS-02: queue — ponytail: array of {sceneName, params}
 function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
 function getSceneParams(name) {
   const selectedAthlete = raceManager.getSelectedAthlete();
@@ -573,7 +574,12 @@ function setScene(sceneName, opts = {}) {
   if (!params) return;
   const modeEl = document.querySelector('#mode');
   if (modeEl) modeEl.textContent = params.label;
-  if (instant || !routeCurve) { camera.position.copy(params.pos); controls.target.copy(params.target); targetPos.copy(params.target); programCamera.position.copy(params.pos); ndiTarget.copy(params.target); camTween = null; ndiTween = null; return; }
+  if (instant || !routeCurve) { camera.position.copy(params.pos); controls.target.copy(params.target); targetPos.copy(params.target); programCamera.position.copy(params.pos); ndiTarget.copy(params.target); camTween = null; ndiTween = null; ndiQueue = []; return; }
+  // TRANS-02: queue — if NDI tween active, push and return (never interrupt)
+  if (ndiTween) {
+    ndiQueue.push({ sceneName, params });
+    return;
+  }
   // TRANS-01: NDI-only — tween moves only programCamera (NDI), browser holds fixed until completion
   ndiTween = { startPos: programCamera.position.clone(), endPos: params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
   // browser camera stays — no camTween, keeps current position/target
@@ -1125,7 +1131,7 @@ function frame() {
   // NON scalare routeLine e treesMesh come mesh intera (sposterebbe la geometria sotto la montagna)
   // Per tracciato e alberi lo scaling va fatto su geometria/instanza, per ora lasciato a 1 per stabilità
 
-  // TRANS-01: NDI-only — tween moves only programCamera, browser holds
+  // TRANS-01/02: NDI-only + queue — tween moves only programCamera, browser holds
   if (ndiTween) {
     ndiTween.elapsed += dt;
     let t = Math.min(1, ndiTween.elapsed / ndiTween.duration);
@@ -1133,10 +1139,32 @@ function frame() {
     programCamera.position.lerpVectors(ndiTween.startPos, ndiTween.endPos, e);
     ndiTarget.lerpVectors(ndiTween.startTarget, ndiTween.endTarget, e);
     programCamera.lookAt(ndiTarget);
-    if (t >= 1) ndiTween = null;
+    if (t >= 1) {
+      ndiTween = null;
+      // TRANS-02: dequeue next if queued
+      if (ndiQueue.length) {
+        const next = ndiQueue.shift();
+        activeScene = next.sceneName;
+        try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
+        document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
+        const modeEl = document.querySelector('#mode');
+        if (modeEl) modeEl.textContent = next.params.label;
+        ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: 1.8 };
+      }
+    }
   } else {
     programCamera.copy(camera);
     ndiTarget.copy(controls.target);
+    // if queue has pending but no tween (edge case where setScene queued while tween was active but now null, already handled above)
+    if (ndiQueue.length) {
+      const next = ndiQueue.shift();
+      activeScene = next.sceneName;
+      try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
+      document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
+      const modeEl = document.querySelector('#mode');
+      if (modeEl) modeEl.textContent = next.params.label;
+      ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: 1.8 };
+    }
   }
   programCamera.aspect = 16 / 9;
   programCamera.updateProjectionMatrix();
