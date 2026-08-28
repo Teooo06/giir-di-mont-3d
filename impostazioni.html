@@ -168,6 +168,20 @@
               <input type="text" id="ndi-source-input" value="GIIR-3D-PROGRAM" class="form-control" />
             </div>
 
+            <!-- RACE-02: Velocità Simulazione — ponytail: native select+range, no lib -->
+            <div class="form-group">
+              <label>Velocità Simulazione — <span id="sim-speed-label">Tempo Reale (1×)</span></label>
+              <div style="display:flex; gap:12px; align-items:center;">
+                <select id="sim-speed-mode" class="form-control" style="max-width:170px;">
+                  <option value="realtime">Tempo Reale</option>
+                  <option value="accelerated">Accelerato</option>
+                </select>
+                <input type="range" id="sim-speed-slider" min="10" max="100" step="10" value="10" class="form-slider" style="flex:1;" />
+                <span id="sim-speed-val" style="min-width:48px; text-align:right; font:600 13px monospace;">10×</span>
+              </div>
+              <small class="help-text">Accelerato 10×–100× velocizza la simulazione gara. Sincronizzato via localStorage a / (BroadcastChannel).</small>
+            </div>
+
             <div class="form-group checkbox-group">
               <label>
                 <input type="checkbox" id="chk-prof-overlay" checked />
