@@ -2,22 +2,41 @@ export class RaceManager {
   constructor(options = {}) {
     this.totalKm = 32.0;
     this.totalElevationGain = 3800;
-    this.winnerReferenceTime = '03:15:00';
+    this.winnerReferenceTime = '03:14:04'; // RACE-01: Magnini 2025 record
     this.onStateChange = options.onStateChange || null;
 
-// Checkpoint Ufficiali Reali del Giir di Mont 32 km
+// Checkpoint Ufficiali Reali del Giir di Mont 32 km — refSplit allineati a Magnini 03:14:04 (2025)
     this.defaultCheckpoints = [
-      { id: 'cp0', name: 'PARTENZA · Premana', km: 0.0, ele: 960.5, lat: 46.053108, lon: 9.420741, isStart: true },
-      { id: 'cp1', name: 'Alpe Chiarino', km: 4.8, ele: 1542.8, lat: 46.042958, lon: 9.446078, refSplit: '00:26:15' },
-      { id: 'cp2', name: 'Alpe Vegessa (Cancello 1)', km: 9.0, ele: 1196.1, lat: 46.041193, lon: 9.466374, refSplit: '00:48:30' },
-      { id: 'cp3', name: 'Bocchetta di Larec (GPM)', km: 14.5, ele: 2070.3, lat: 46.044809, lon: 9.492315, refSplit: '01:29:40' },
-      { id: 'cp4', name: 'Alpe Fraina', km: 16.8, ele: 1395.0, lat: 46.054928, lon: 9.464670, refSplit: '01:43:10' },
-      { id: 'cp5', name: 'Alpe Rasga (Intermedio 4)', km: 19.0, ele: 1090.8, lat: 46.054928, lon: 9.464670, refSplit: '01:54:20' },
-      { id: 'cp6', name: 'Alpe Premaniga', km: 23.0, ele: 1400.8, lat: 46.060895, lon: 9.425510, refSplit: '02:21:00' },
-      { id: 'cp7', name: 'Alpe Solino (Cancello 2)', km: 25.0, ele: 1601.8, lat: 46.060895, lon: 9.425510, refSplit: '02:35:15' },
-      { id: 'cp8', name: 'Alpe Deleguaggio (Intermedio 5)', km: 27.5, ele: 1658.9, lat: 46.060895, lon: 9.425510, refSplit: '02:51:30' },
-      { id: 'cp9', name: 'ARRIVO · Premana', km: 32.0, ele: 958.4, lat: 46.052978, lon: 9.420907, refSplit: '03:15:00', isFinish: true }
+      { id: 'cp0', name: 'PARTENZA · Premana', km: 0.0, ele: 960.5, lat: 46.053108, lon: 9.420741, isStart: true, refSplit: '00:00:00' },
+      { id: 'cp1', name: 'Alpe Chiarino', km: 4.8, ele: 1542.8, lat: 46.042958, lon: 9.446078, refSplit: '00:26:07' },
+      { id: 'cp2', name: 'Alpe Vegessa (Cancello 1)', km: 9.0, ele: 1196.1, lat: 46.041193, lon: 9.466374, refSplit: '00:48:16' },
+      { id: 'cp3', name: 'Bocchetta di Larec (GPM)', km: 14.5, ele: 2070.3, lat: 46.044809, lon: 9.492315, refSplit: '01:29:14' },
+      { id: 'cp4', name: 'Alpe Fraina', km: 16.8, ele: 1395.0, lat: 46.054928, lon: 9.464670, refSplit: '01:42:40' },
+      { id: 'cp5', name: 'Alpe Rasga (Intermedio 4)', km: 19.0, ele: 1090.8, lat: 46.054928, lon: 9.464670, refSplit: '01:53:47' },
+      { id: 'cp6', name: 'Alpe Premaniga', km: 23.0, ele: 1400.8, lat: 46.060895, lon: 9.425510, refSplit: '02:20:19' },
+      { id: 'cp7', name: 'Alpe Solino (Cancello 2)', km: 25.0, ele: 1601.8, lat: 46.060895, lon: 9.425510, refSplit: '02:34:30' },
+      { id: 'cp8', name: 'Alpe Deleguaggio (Intermedio 5)', km: 27.5, ele: 1658.9, lat: 46.060895, lon: 9.425510, refSplit: '02:50:40' },
+      { id: 'cp9', name: 'ARRIVO · Premana', km: 32.0, ele: 958.4, lat: 46.052978, lon: 9.420907, refSplit: '03:14:04', isFinish: true }
     ];
+
+    // RACE-01: Dati splits storici 2025 — ponytail: plain object, single source for RACE-03 interpolation
+    this.defaultSplits2025 = {
+      winner: 'Magnini',
+      year: 2025,
+      totalTime: '03:14:04',
+      splits: {
+        cp0: '00:00:00',
+        cp1: '00:26:07',
+        cp2: '00:48:16',
+        cp3: '01:29:14',
+        cp4: '01:42:40',
+        cp5: '01:53:47',
+        cp6: '02:20:19',
+        cp7: '02:34:30',
+        cp8: '02:50:40',
+        cp9: '03:14:04'
+      }
+    };
 
     // Atleti Top Giir di Mont
     this.defaultAthletes = [
