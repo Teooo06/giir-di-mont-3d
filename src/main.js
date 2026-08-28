@@ -529,6 +529,20 @@ let activeScene = settingsManager.settings.activeScene || 'overview';
 let isAutoPlaying = true;
 const targetPos = new THREE.Vector3();
 
+// CAM-05: presets Close/Wide/Helicopter — ponytail: 3 presets + default, persisted
+const camPresets = {
+  close: { dist: 40, height: 20 },
+  wide: { dist: 100, height: 60 },
+  helicopter: { dist: 200, height: 120 },
+  default: { dist: 95, height: 55 }
+};
+let currentCamPreset = settingsManager.settings.cameraPreset || 'default';
+function setCamPreset(name) {
+  if (!camPresets[name]) return;
+  currentCamPreset = name;
+  try { settingsManager.update({ cameraPreset: name }); } catch {}
+}
+
 // ponytail: native lerp + easeInOutCubic instead of GSAP — stdlib Math, ~40 lines, no new dep; upgrade to GSAP/Bezier if director wants spline easing
 let camTween = null; // { startPos, endPos, startTarget, endTarget, elapsed, duration }
 function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
@@ -563,6 +577,10 @@ document.querySelectorAll('[data-scene]').forEach(b => {
 // Tastiera
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  // CAM-05: preset Shift+1/2/3 — close/wide/helicopter
+  if (e.shiftKey && e.code === 'Digit1') { setCamPreset('close'); return; }
+  if (e.shiftKey && e.code === 'Digit2') { setCamPreset('wide'); return; }
+  if (e.shiftKey && e.code === 'Digit3') { setCamPreset('helicopter'); return; }
   if (e.key === '1') setScene('overview');
   if (e.key === '2') setScene('runner');
   if (e.key === '3') setScene('checkpoint');
@@ -996,12 +1014,14 @@ function frame() {
         const ratio = Math.min(0.999, Math.max(0.001, selectedAthlete.km / raceManager.totalKm));
         const pt = routeCurve.getPointAt(ratio);
         const tangent = routeCurve.getTangentAt(ratio).normalize();
-        const camDistBack = 95; // calibration knob dist behind leader
+        const baseDist = camPresets[currentCamPreset]?.dist ?? 95;
+        const baseHeight = camPresets[currentCamPreset]?.height ?? 55;
+        const camDistBack = baseDist; // calibration knob dist behind leader
         // CAM-04: height adaptive to slope — ponytail: Δele between verts, downhill +height, uphill -height
         const slopeProbeRatio = Math.min(0.999, ratio + 0.005);
         const ptSlopeProbe = routeCurve.getPointAt(slopeProbeRatio);
         const slopeDelta = ptSlopeProbe.y - pt.y;
-        const camHeight = 55 + THREE.MathUtils.clamp(-slopeDelta * 2.5, -12, 18); // 43-73 range
+        const camHeight = baseHeight + THREE.MathUtils.clamp(-slopeDelta * 2.5, -12, 18); // adaptive range
         const idealCamPos = pt.clone().add(tangent.clone().multiplyScalar(-camDistBack)).add(new THREE.Vector3(0, camHeight, 0));
         const camLerp = 1 - Math.exp(-4 * dt); // frame-rate independent
         camera.position.lerp(idealCamPos, camLerp);
