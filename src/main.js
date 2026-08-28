@@ -551,6 +551,8 @@ function setCamPreset(name) {
 
 // ponytail: native lerp + easeInOutCubic instead of GSAP — stdlib Math, ~40 lines, no new dep; upgrade to GSAP/Bezier if director wants spline easing
 let camTween = null; // { startPos, endPos, startTarget, endTarget, elapsed, duration }
+let ndiTween = null; // TRANS-01: NDI-only tween — ponytail: separate from camTween
+const ndiTarget = new THREE.Vector3(0, 70, 0);
 function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
 function getSceneParams(name) {
   const selectedAthlete = raceManager.getSelectedAthlete();
@@ -571,9 +573,10 @@ function setScene(sceneName, opts = {}) {
   if (!params) return;
   const modeEl = document.querySelector('#mode');
   if (modeEl) modeEl.textContent = params.label;
-  if (instant || !routeCurve) { camera.position.copy(params.pos); controls.target.copy(params.target); targetPos.copy(params.target); camTween = null; return; }
-  // start tween from current (mid-flight safe) to target — 3d-games: smooth following via lerp, camera feel
-  camTween = { startPos: camera.position.clone(), endPos: params.pos.clone(), startTarget: controls.target.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
+  if (instant || !routeCurve) { camera.position.copy(params.pos); controls.target.copy(params.target); targetPos.copy(params.target); programCamera.position.copy(params.pos); ndiTarget.copy(params.target); camTween = null; ndiTween = null; return; }
+  // TRANS-01: NDI-only — tween moves only programCamera (NDI), browser holds fixed until completion
+  ndiTween = { startPos: programCamera.position.clone(), endPos: params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
+  // browser camera stays — no camTween, keeps current position/target
 }
 
 document.querySelectorAll('[data-scene]').forEach(b => {
@@ -1122,8 +1125,19 @@ function frame() {
   // NON scalare routeLine e treesMesh come mesh intera (sposterebbe la geometria sotto la montagna)
   // Per tracciato e alberi lo scaling va fatto su geometria/instanza, per ora lasciato a 1 per stabilità
 
-  // Sincronizza Program camera al 100% con la camera browser, poi forza 16:9
-  programCamera.copy(camera);
+  // TRANS-01: NDI-only — tween moves only programCamera, browser holds
+  if (ndiTween) {
+    ndiTween.elapsed += dt;
+    let t = Math.min(1, ndiTween.elapsed / ndiTween.duration);
+    const e = easeInOutCubic(t);
+    programCamera.position.lerpVectors(ndiTween.startPos, ndiTween.endPos, e);
+    ndiTarget.lerpVectors(ndiTween.startTarget, ndiTween.endTarget, e);
+    programCamera.lookAt(ndiTarget);
+    if (t >= 1) ndiTween = null;
+  } else {
+    programCamera.copy(camera);
+    ndiTarget.copy(controls.target);
+  }
   programCamera.aspect = 16 / 9;
   programCamera.updateProjectionMatrix();
 
