@@ -6,7 +6,6 @@ import { RaceManager } from './race-manager.js';
 import { SettingsManager } from './settings-manager.js';
 import { ElevationProfile } from './elevation-profile.js';
 import { createArch, placeArchAtRoute } from './models/arch.js';
-import { VersionManager } from './version-manager.js';
 import './style.css';
 
 // ----------------------------------------------------
@@ -107,7 +106,6 @@ const raceManager = new RaceManager({
     updateRiderCard();
   }
 });
-const versionManager = new VersionManager();
 
 const ndiStreamer = new NdiStreamer({
   sourceName: settingsManager.settings.ndiSourceName,
@@ -572,7 +570,7 @@ function parseGpxAndBuild(xmlText, filename = 'giir-di-mont-32-km.gpx') {
   setScene('overview', { instant: true });
 }
 
-// Inizializza Terreno e GPX all'avvio — RIPRISTINO ORIGINALE (prima delle modifiche editor)
+// Inizializza Terreno e GPX all'avvio
 async function initWorld() {
   const trackStatus = document.querySelector('#track-status');
   try {

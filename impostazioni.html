@@ -362,27 +362,6 @@
 
         <input type="file" id="gpx-input" accept=".gpx,application/xml" hidden />
 
-        <!-- Versionamento Mondo 3D -->
-        <section class="card">
-          <div class="card-header">
-            <div>
-              <span class="badge">VERSIONAMENTO</span>
-              <h2>Versioni Mondo 3D — Storico Modifiche</h2>
-              <p class="subtitle">Ogni salvataggio in <code>/edit</code> crea una versione con timestamp. L'ultima versione è usata automaticamente in <code>/</code> e in diretta. Gestisci qui lo storico.</p>
-            </div>
-          </div>
-          <div class="settings-form">
-            <div id="version-list" style="max-height:320px; overflow:auto; border:1px solid #2a2a2a; background:#111; padding:8px;"></div>
-            <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
-              <button id="btn-version-save" class="btn-secondary">💾 Salva versione ora</button>
-              <button id="btn-version-clear" class="btn-outline">🗑️ Cancella storico</button>
-              <button id="btn-version-export-all" class="btn-secondary">📤 Esporta tutte (JSON)</button>
-              <a href="/edit.html" target="_blank" class="btn-primary" style="text-decoration:none;">✏️ Apri Editor /edit</a>
-            </div>
-            <small class="help-text">Auto-save ogni 3s in <code>/edit</code> + versione auto ogni 2s dopo modifica. Latest è attiva al reload di <code>/</code>.</small>
-          </div>
-        </section>
-
         <!-- UI-06: Legenda Scorciatoie -->
         <section class="card">
           <div class="card-header">

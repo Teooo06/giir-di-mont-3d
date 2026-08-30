@@ -77,19 +77,6 @@ export class TerrainManager {
     return new THREE.Vector3(x, y, z);
   }
 
-  worldToCoord(x, z, y = null) {
-    const lon = (x / (this.metersPerDegreeLon * this.scale)) + this.centerLon;
-    const lat = this.centerLat - (z / (this.metersPerDegreeLat * this.scale));
-    let ele = null;
-    if (y !== null && Number.isFinite(y)) {
-      ele = (y / (this.scale * this.verticalExaggeration)) + this.baseElevation;
-    } else {
-      const yGround = this.getElevationAtWorld(x, z);
-      ele = (yGround / (this.scale * this.verticalExaggeration)) + this.baseElevation;
-    }
-    return { lat, lon, ele };
-  }
-
   getElevationAtWorld(x, z) {
     if (!this.terrainData) return 0;
     const lon = (x / (this.metersPerDegreeLon * this.scale)) + this.centerLon;
