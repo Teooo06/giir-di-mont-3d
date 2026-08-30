@@ -80,43 +80,79 @@ function parsePacket(buf) {
 }
 
 async function openSerial(path) {
-  log(`Apertura seriale ${path} @921600...`);
-  serial = new SerialPort({ path, baudRate: 921600, autoOpen: false });
-  await new Promise((res, rej) => serial.open(err => err ? rej(err) : res()));
-  log(`Seriale aperta, invio handshake...`);
-  serial.write(HANDSHAKE);
-  let buf = Buffer.alloc(0);
-  serial.on('data', (chunk) => {
-    buf = Buffer.concat([buf, chunk]);
-    while (buf.length >= 38) {
-      // cerca header 0x55
-      let start = buf.indexOf(0x55);
-      if (start === -1) { buf = Buffer.alloc(0); break; }
-      if (start > 0) buf = buf.slice(start);
-      if (buf.length < 38) break;
-      const packet = buf.slice(0, 38);
-      buf = buf.slice(38);
-      const sticks = parsePacket(packet);
-      if (!sticks) continue;
-      const { lx, ly, rx, ry, raw } = sticks;
-      dbg(`raw lx=${raw.lx} ly=${raw.ly} rx=${raw.rx} ry=${raw.ry} -> norm lx=${lx.toFixed(2)} ly=${ly.toFixed(2)} rx=${rx.toFixed(2)} ry=${ry.toFixed(2)}`);
-      // Mappa DJI Mode 2 (default): LX=yaw, LY=throttle, RX=roll, RY=pitch
-      // Per Giir 3D: left orbit (yaw/pitch), right pan
-      // Invia come controller virtuale
-      // Dead-zone 0.08
-      const dz = 0.08;
-      const dead = (v) => Math.abs(v) < dz ? 0 : v;
-      const lxD = dead(lx), lyD = dead(ly), rxD = dead(rx), ryD = dead(ry);
-      // Invia orbit con left stick
-      if (lxD || lyD) sendController({ action: 'orbit', x: lxD, y: -lyD }); // ly invertito per pitch naturale
-      // Invia pan con right stick
-      if (rxD || ryD) sendController({ action: 'pan', x: rxD, y: -ryD });
-      // Invia anche zoom via dial (se vuoi mappare RY a zoom): opzionale
-      // Per ora non inviamo zoom da DJI, lo lasciamo allo slider
+  const tryBauds = [921600, 115200, 57600];
+  for (const baud of tryBauds) {
+    try {
+      log(`Apertura seriale ${path} @${baud}...`);
+      serial = new SerialPort({ path, baudRate: baud, autoOpen: false });
+      await new Promise((res, rej) => serial.open(err => err ? rej(err) : res()));
+      log(`Seriale aperta @${baud}, invio handshake (3x)...`);
+      // Invia handshake 3 volte con delay per robustezza
+      for (let i = 0; i < 3; i++) {
+        serial.write(HANDSHAKE);
+        await new Promise(r => setTimeout(r, 100));
+      }
+      let buf = Buffer.alloc(0);
+      let packetCount = 0;
+      let lastLog = Date.now();
+      serial.on('data', (chunk) => {
+        if (Date.now() - lastLog > 3000) {
+          log(`Ricevuti ${chunk.length} byte (hex: ${chunk.slice(0, 16).toString('hex')}...)`);
+          lastLog = Date.now();
+        }
+        buf = Buffer.concat([buf, chunk]);
+        while (buf.length >= 38) {
+          let start = buf.indexOf(0x55);
+          if (start === -1) { 
+            // log raw per debug se non troviamo header
+            if (buf.length > 100) {
+              dbg(`Nessun header 0x55 in ${buf.length} byte, dump: ${buf.slice(0, 32).toString('hex')}`);
+              buf = Buffer.alloc(0);
+            }
+            break; 
+          }
+          if (start > 0) buf = buf.slice(start);
+          if (buf.length < 38) break;
+          const packet = buf.slice(0, 38);
+          buf = buf.slice(38);
+          packetCount++;
+          if (packetCount % 50 === 0) log(`Pacchetti ricevuti: ${packetCount}`);
+          const sticks = parsePacket(packet);
+          if (!sticks) {
+            if (DEBUG) dbg(`Pacchetto scartato: ${packet.toString('hex').slice(0, 64)}`);
+            continue;
+          }
+          const { lx, ly, rx, ry, raw } = sticks;
+          dbg(`raw lx=${raw.lx} ly=${raw.ly} rx=${raw.rx} ry=${raw.ry} -> norm lx=${lx.toFixed(2)} ly=${ly.toFixed(2)} rx=${rx.toFixed(2)} ry=${ry.toFixed(2)}`);
+          const dz = 0.08;
+          const dead = (v) => Math.abs(v) < dz ? 0 : v;
+          const lxD = dead(lx), lyD = dead(ly), rxD = dead(rx), ryD = dead(ry);
+          if (lxD || lyD) sendController({ action: 'orbit', x: lxD, y: -lyD });
+          if (rxD || ryD) sendController({ action: 'pan', x: rxD, y: -ryD });
+        }
+      });
+      serial.on('error', (e) => log('Seriale errore', e.message));
+      serial.on('close', () => { log('Seriale chiusa, riapro in 2s'); setTimeout(() => findAndOpen(), 2000); });
+      // Se non riceviamo dati in 3s, prova prossimo baud
+      setTimeout(() => {
+        if (packetCount === 0) {
+          log(`Nessun pacchetto @${baud} dopo 3s, provo prossimo baud...`);
+          try { serial.close(); } catch {}
+          // try next baud via recursion
+          openSerial(path).catch(() => {});
+        } else {
+          log(`Baud ${baud} OK, ${packetCount} pacchetti ricevuti`);
+        }
+      }, 3000);
+      return; // successo, esci dal loop tryBauds
+    } catch (e) {
+      log(`Fallito @${baud}: ${e.message}`);
+      try { serial?.close(); } catch {}
+      continue;
     }
-  });
-  serial.on('error', (e) => log('Seriale errore', e.message));
-  serial.on('close', () => { log('Seriale chiusa, riapro in 2s'); setTimeout(() => findAndOpen(), 2000); });
+  }
+  log(`Tutti i baud falliti per ${path}`);
+  setTimeout(() => findAndOpen(), 3000);
 }
 
 async function findAndOpen() {
