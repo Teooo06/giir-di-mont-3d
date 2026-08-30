@@ -2,85 +2,77 @@
 <html lang="it">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Giir di Mont — Controller Joystick (locale)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Controller</title>
     <style>
       *{box-sizing:border-box;margin:0;padding:0}
-      html,body{height:100%;overflow:hidden;background:#0e1417;color:#e8f0f2;font-family:'Barlow Condensed',system-ui,sans-serif;touch-action:none}
-      .app{display:flex;flex-direction:column;height:100%}
-      .header{padding:12px 16px;background:#151d20;border-bottom:1px solid #2a3336;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-      .header h1{font:700 16px 'Barlow Condensed',sans-serif;letter-spacing:.04em}
-      .header .badge{font:600 11px monospace;background:#dff654;color:#0e1417;padding:2px 6px;border-radius:10px}
-      .btn{appearance:none;border:1px solid #333;background:#1e2a2e;color:#dff654;padding:8px 14px;border-radius:8px;font:600 13px 'Barlow Condensed',sans-serif;cursor:pointer}
-      .btn:active{transform:scale(.98)}
-      .btn.active{background:#dff654;color:#0e1417;border-color:#dff654}
-      .btn:disabled{opacity:.4;pointer-events:none}
-      .status{margin-left:auto;font:11px monospace;opacity:.7}
-      .main{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;align-items:center}
-      @media(max-width:700px){.main{grid-template-columns:1fr;}}
-      .joy-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
-      .joy-label{font:600 12px monospace;opacity:.8;letter-spacing:.06em}
-      .joy{width:180px;height:180px;border-radius:50%;background:radial-gradient(circle at 30% 30%, #1e2a2e, #0e1417);border:2px solid #2a3336;position:relative;touch-action:none;user-select:none}
-      .joy::after{content:'';position:absolute;inset:18%;border:1px dashed #2a3336;border-radius:50%;pointer-events:none}
-      .stick{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:radial-gradient(circle at 30% 30%, #dff654, #a8b800);border:2px solid #0e1417;box-shadow:0 4px 12px rgba(0,0,0,.5);transition:transform .05s linear}
-      .hint{font:11px monospace;opacity:.6;text-align:center;max-width:180px}
-      .controls{padding:12px;background:#0e1417;border-top:1px solid #2a3336;display:flex;flex-direction:column;gap:10px}
-      .scenes{display:flex;gap:8px;flex-wrap:wrap}
-      .scenes .btn{flex:1;min-width:80px}
-      .timeline{display:flex;align-items:center;gap:10px}
-      .timeline label{font:11px monospace;opacity:.7;min-width:70px}
-      .timeline input[type=range]{flex:1;accent-color:#dff654}
-      .timeline b{font:11px monospace;min-width:50px;text-align:right}
-      .footer{padding:8px 12px;font:11px monospace;opacity:.5;text-align:center;border-top:1px solid #1a262a}
+      html,body{height:100%;width:100%;overflow:hidden;background:#0a0f11;color:#e8f0f2;font-family:system-ui,sans-serif;touch-action:none;overscroll-behavior:none}
+      .app{height:100vh;height:100dvh;width:100vw;display:flex;flex-direction:column}
+      .top{height:36px;background:#11191b;border-bottom:1px solid #1e2e33;display:flex;align-items:center;gap:8px;padding:0 10px;flex-shrink:0}
+      .btn{appearance:none;border:1px solid #2a3a3f;background:#1a262a;color:#dff654;padding:6px 12px;border-radius:6px;font:700 12px system-ui;cursor:pointer;white-space:nowrap}
+      .btn.active{background:#dff654;color:#0a0f11;border-color:#dff654}
+      .btn:active{transform:scale(.97)}
+      .status{font:10px monospace;opacity:.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .spacer{flex:1}
+      .main{flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;min-height:0}
+      .joy-wrap{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px}
+      .joy{width:min(26vh,180px);height:min(26vh,180px);width:min(42vw,180px);height:min(42vw,180px);max-width:170px;max-height:170px;border-radius:50%;background:radial-gradient(circle at 30% 30%, #162024, #0a0f11);border:2px solid #1e2e33;position:relative;touch-action:none}
+      .joy::after{content:'';position:absolute;inset:16%;border:1px dashed #1e2e33;border-radius:50%;pointer-events:none}
+      .stick{position:absolute;left:50%;top:50%;width:36%;height:36%;margin:-18% 0 0 -18%;border-radius:50%;background:radial-gradient(circle at 30% 30%, #dff654, #8a9a00);border:2px solid #0a0f11;box-shadow:0 2px 8px rgba(0,0,0,.6)}
+      .center{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;max-width:420px;padding:0 6px}
+      .row{display:flex;gap:6px}
+      .row .btn{flex:1;padding:6px 4px;font-size:11px;min-width:0}
+      .sliders{display:flex;flex-direction:column;gap:6px;background:#0f1719;border:1px solid #1a2a2e;border-radius:8px;padding:8px}
+      .sliders label{font:600 10px monospace;opacity:.7;display:flex;align-items:center;gap:6px}
+      .sliders input[type=range]{flex:1;accent-color:#dff654;height:22px}
+      .sliders b{font:10px monospace;min-width:36px;text-align:right}
+      @media (orientation:portrait){
+        .main{flex-direction:column;justify-content:center;gap:10px;padding:10px}
+        .joy{width:min(38vw,160px);height:min(38vw,160px)}
+        .center{max-width:100%;width:100%}
+      }
+      @media (max-height:420px){
+        .top{height:32px}
+        .joy{width:130px;height:130px}
+        .sliders{padding:6px;gap:4px}
+      }
     </style>
   </head>
   <body>
     <div class="app">
-      <header class="header">
-        <h1>🎮 Controller Joystick</h1>
-        <span class="badge">LOCALE</span>
-        <button id="btn-activate" class="btn">▶️ Attiva Controllo</button>
+      <div class="top">
+        <button id="btn-activate" class="btn">▶️ Attiva</button>
         <span id="status" class="status">disconnesso</span>
-      </header>
+        <span class="spacer"></span>
+        <label style="font:10px monospace;opacity:.7;display:flex;align-items:center;gap:4px;">SPEED <input id="speed-slider" type="range" min="0.3" max="2.5" step="0.1" value="1.0" style="width:80px;accent-color:#dff654;"><b id="speed-val" style="font:10px monospace;min-width:24px">1.0×</b></label>
+      </div>
 
-      <main class="main">
+      <div class="main">
         <div class="joy-wrap">
-          <div class="joy-label">⬅️ LEFT — DJI yaw/throttle — sx/dx ruota, su/giù inclina (veloce)</div>
           <div id="joy-left" class="joy"><div id="stick-left" class="stick"></div></div>
-          <div class="hint">DJI Mode 2: stick sx = yaw + throttle. Veloce 2.5×.</div>
         </div>
+
+        <div class="center">
+          <div class="row">
+            <button data-scene="overview" class="btn">1</button>
+            <button data-scene="runner" class="btn">2</button>
+            <button data-scene="checkpoint" class="btn">3</button>
+            <button data-scene="topdown" class="btn">4</button>
+          </div>
+          <div class="sliders">
+            <label>ZOOM <input id="zoom-slider" type="range" min="40" max="2600" step="10" value="400"><b id="zoom-val">400</b></label>
+            <label>TIMELINE <input id="timeline-slider" type="range" min="0" max="32" step="0.1" value="0"><b id="timeline-val">0.0</b></label>
+          </div>
+          <div class="row">
+            <button id="btn-play" class="btn" style="flex:1;">⏯️ Play</button>
+            <span id="host-mini" style="font:9px monospace;opacity:.4;align-self:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"></span>
+          </div>
+        </div>
+
         <div class="joy-wrap">
-          <div class="joy-label">➡️ RIGHT — DJI pitch/roll — avanti/indietro + pan laterale</div>
           <div id="joy-right" class="joy"><div id="stick-right" class="stick"></div></div>
-          <div class="hint">Stick dx = pitch/roll. Zoom con slider sotto.</div>
         </div>
-      </main>
-      <section class="controls" style="padding:8px 12px;">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <label for="zoom-slider" style="font:600 12px monospace; min-width:60px;">🔍 ZOOM</label>
-          <input id="zoom-slider" type="range" min="40" max="2600" step="10" value="400" style="flex:1; accent-color:#dff654;" />
-          <b id="zoom-val" style="font:11px monospace; min-width:60px; text-align:right;">400</b>
-        </div>
-      </section>
-
-      <section class="controls">
-        <div class="scenes">
-          <button data-scene="overview" class="btn">1 Panoramica</button>
-          <button data-scene="runner" class="btn">2 Insegui</button>
-          <button data-scene="checkpoint" class="btn">3 Larec</button>
-          <button data-scene="topdown" class="btn">4 Zenith</button>
-        </div>
-        <div class="timeline">
-          <label for="timeline-slider">Timeline</label>
-          <input id="timeline-slider" type="range" min="0" max="32" step="0.1" value="0" />
-          <b id="timeline-val">0.0 km</b>
-          <button id="btn-play" class="btn" style="padding:6px 10px;">⏯️ Play/Pausa</button>
-        </div>
-      </section>
-
-      <footer class="footer">
-        Apri da telefono su <code id="host-info"></code> → premi Attiva → muovi i joystick. Richiede PC e telefono sulla stessa rete LAN. Server WS: <code id="ws-info"></code>
-      </footer>
+      </div>
     </div>
     <script type="module" src="/src/controller.js"></script>
   </body>

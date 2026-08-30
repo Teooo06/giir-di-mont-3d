@@ -57,12 +57,13 @@ controls.maxPolarAngle = Math.PI * 0.485;
 // YOU-24: gamepad edge state — ponytail: 4 bools for D-pad, no lib
 let gamepadPrevDpad = [false, false, false, false];
 
-// CONTROLLER virtuale — DJI style, zoom via slider
+// CONTROLLER virtuale — DJI style, zoom via slider + speed
 let controllerActive = false;
 let controllerOrbit = { x: 0, y: 0 };
 let controllerZoomPan = { x: 0, y: 0 };
 let controllerPan = { x: 0, y: 0 };
 let controllerZoomDist = null;
+let controllerSpeed = 1.0;
 try {
   const ctrlChannel = new BroadcastChannel('giir_controller_channel');
   ctrlChannel.onmessage = (e) => {
@@ -92,6 +93,7 @@ function handleControllerMessage(d) {
   if (d.action === 'zoompan') controllerZoomPan = { x: d.x || 0, y: d.y || 0 };
   if (d.action === 'pan') controllerPan = { x: d.x || 0, y: d.y || 0 };
   if (d.action === 'zoom' && Number.isFinite(d.dist)) controllerZoomDist = d.dist;
+  if (d.action === 'speed' && Number.isFinite(d.value)) controllerSpeed = Math.max(0.3, Math.min(2.5, d.value));
   if (d.action === 'scene' && d.scene) setScene(d.scene);
   if (d.action === 'timeline' && Number.isFinite(d.km)) {
     const ath = raceManager.getSelectedAthlete();
@@ -1165,19 +1167,19 @@ const clock = new THREE.Clock();
 function frame() {
   requestAnimationFrame(frame);
   const dt = clock.getDelta();
-  // CONTROLLER virtuale — DJI style, veloce
+  // CONTROLLER virtuale — DJI style, veloce + speed slider
   if (controllerActive) {
+    const s = controllerSpeed;
     if (Math.abs(controllerOrbit.x) > 0.03 || Math.abs(controllerOrbit.y) > 0.03) {
       const spherical = new THREE.Spherical();
       spherical.setFromVector3(camera.position.clone().sub(controls.target));
-      spherical.theta -= controllerOrbit.x * 0.15;
-      spherical.phi -= controllerOrbit.y * 0.13;
+      spherical.theta -= controllerOrbit.x * 0.15 * s;
+      spherical.phi -= controllerOrbit.y * 0.13 * s;
       spherical.phi = THREE.MathUtils.clamp(spherical.phi, 0.15, Math.PI * 0.48);
       spherical.makeSafe();
       camera.position.setFromSpherical(spherical).add(controls.target);
       controls.update();
     }
-    // zoom via slider (assoluto)
     if (controllerZoomDist !== null) {
       const dir = camera.position.clone().sub(controls.target).normalize();
       const curDist = camera.position.distanceTo(controls.target);
@@ -1186,23 +1188,22 @@ function frame() {
     } else if (Math.abs(controllerZoomPan.y) > 0.05) {
       const dir = camera.position.clone().sub(controls.target).normalize();
       const dist = camera.position.distanceTo(controls.target);
-      const newDist = THREE.MathUtils.clamp(dist - controllerZoomPan.y * 14, 40, 2600);
+      const newDist = THREE.MathUtils.clamp(dist - controllerZoomPan.y * 14 * s, 40, 2600);
       camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
     }
-    // pan DJI right stick — x strafe, y forward/back
     const panX = controllerPan.x !== 0 ? controllerPan.x : controllerZoomPan.x;
     const panY = controllerPan.y;
     if (Math.abs(panX) > 0.05) {
       const camDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
       const right = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
-      const delta = right.multiplyScalar(panX * 10);
+      const delta = right.multiplyScalar(panX * 10 * s);
       controls.target.add(delta);
       camera.position.add(delta);
     }
     if (Math.abs(panY) > 0.05) {
       const forward = new THREE.Vector3().subVectors(controls.target, camera.position).normalize();
       forward.y = 0; forward.normalize();
-      const delta = forward.multiplyScalar(panY * 10);
+      const delta = forward.multiplyScalar(panY * 10 * s);
       controls.target.add(delta);
       camera.position.add(delta);
     }

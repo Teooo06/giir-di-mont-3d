@@ -1,5 +1,5 @@
 const statusEl = document.querySelector('#status');
-const hostInfo = document.querySelector('#host-info');
+const hostInfo = document.querySelector('#host-mini') || document.querySelector('#host-info');
 const wsInfo = document.querySelector('#ws-info');
 const btnActivate = document.querySelector('#btn-activate');
 const timelineSlider = document.querySelector('#timeline-slider');
@@ -7,6 +7,9 @@ const timelineVal = document.querySelector('#timeline-val');
 const btnPlay = document.querySelector('#btn-play');
 const zoomSlider = document.querySelector('#zoom-slider');
 const zoomVal = document.querySelector('#zoom-val');
+const speedSlider = document.querySelector('#speed-slider');
+const speedVal = document.querySelector('#speed-val');
+let speedMult = 1.0;
 
 let ws = null;
 let active = false;
@@ -107,6 +110,11 @@ zoomSlider?.addEventListener('input', (e) => {
   if (zoomVal) zoomVal.textContent = dist.toFixed(0);
   send({ action: 'zoom', dist });
 });
+speedSlider?.addEventListener('input', (e) => {
+  speedMult = parseFloat(e.target.value);
+  if (speedVal) speedVal.textContent = speedMult.toFixed(1) + '×';
+  send({ action: 'speed', value: speedMult });
+});
 
 // Joystick helper — multi-touch safe via Pointer Events + pointerId per joystick
 function makeJoystick(baseEl, stickEl, onMove) {
@@ -182,14 +190,12 @@ const stickRight = document.querySelector('#stick-right');
 
 if (joyLeft && stickLeft) {
   makeJoystick(joyLeft, stickLeft, (x, y) => {
-    // DJI left: x=yaw, y=pitch — send faster (2.5x)
-    send({ action: 'orbit', x: x * 2.5, y: y * 2.5 });
+    send({ action: 'orbit', x: x * 2.5 * speedMult, y: y * 2.5 * speedMult });
   });
 }
 if (joyRight && stickRight) {
   makeJoystick(joyRight, stickRight, (x, y) => {
-    // DJI right: x=roll (strafe), y=pitch (forward/back) — pan
-    send({ action: 'pan', x, y });
+    send({ action: 'pan', x: x * speedMult, y: y * speedMult });
   });
 }
 
