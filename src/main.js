@@ -1186,32 +1186,29 @@ const clock = new THREE.Clock();
 function frame() {
   requestAnimationFrame(frame);
   const dt = clock.getDelta();
-  // CONTROLLER drone libero — non tocca OrbitControls del mouse, solo controller
+  // CONTROLLER drone libero — yaw ruota camera su se stessa (non orbita), throttle alza/abbassa
   if (controllerActive) {
     const s = controllerSpeed;
-    const moveSpeed = 12 * s * dt * 60; // scala con dt per framerate indipendente
-    const rotSpeed = 0.9 * s * dt * 60;
-    // left stick: yaw (x) ruota camera su asse Y, throttle (y) alza/abbassa
+    const moveSpeed = 6 * s * dt * 60; // più lento (prima 12)
+    const rotSpeed = 0.45 * s * dt * 60; // più lento (prima 0.9)
+    // left stick X = yaw: ruota target attorno a camera su asse Y (drone yaw vero)
     if (Math.abs(droneYaw) > 0.05) {
-      const axis = new THREE.Vector3(0, 1, 0);
       const angle = -droneYaw * rotSpeed * 0.04;
-      const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
-      dir.applyAxisAngle(axis, angle);
-      camera.position.copy(controls.target).add(dir);
-      // ruota anche up se necessario (per ora solo yaw)
+      const dir = new THREE.Vector3().subVectors(controls.target, camera.position);
+      dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+      controls.target.copy(camera.position).add(dir);
     }
     if (Math.abs(droneThrottle) > 0.05) {
       const up = new THREE.Vector3(0, 1, 0);
-      const delta = up.multiplyScalar(droneThrottle * moveSpeed * 0.7);
+      const delta = up.multiplyScalar(droneThrottle * moveSpeed * 0.6);
       camera.position.add(delta);
       controls.target.add(delta);
     }
-    // right stick: pitch avanti/indietro, roll laterale
     if (Math.abs(dronePitch) > 0.05) {
       const forward = new THREE.Vector3();
       camera.getWorldDirection(forward);
       forward.y = 0; forward.normalize();
-      const delta = forward.multiplyScalar(dronePitch * moveSpeed);
+      const delta = forward.multiplyScalar(dronePitch * moveSpeed * 0.9);
       camera.position.add(delta);
       controls.target.add(delta);
     }
@@ -1219,7 +1216,7 @@ function frame() {
       const forward = new THREE.Vector3();
       camera.getWorldDirection(forward);
       const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-      const delta = right.multiplyScalar(droneRoll * moveSpeed);
+      const delta = right.multiplyScalar(droneRoll * moveSpeed * 0.9);
       camera.position.add(delta);
       controls.target.add(delta);
     }
