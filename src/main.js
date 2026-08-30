@@ -470,13 +470,15 @@ function rebuildTrack3D() {
     scene.remove(archGroup);
     archGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
   }
-  archGroup = createArch({ height: 7, width: 8, tubeRadius: 1.6, color: '#ff1a1a' });
+  archGroup = createArch({ height: 7, width: 8, tubeRadius: 1.6, color: '#be0000' });
   const archRatio = Math.min(0.999, Math.max(0.001, 14.5 / raceManager.totalKm));
   placeArchAtRoute(archGroup, routeCurve, archRatio, terrainManager);
-  archGroup.rotation.y += Math.PI / 4; // 45° perpendicolare al tracciato
-  archGroup.rotation.y += Math.PI / 2; // +90° CCW da vista zenith
-  archGroup.rotation.x = THREE.MathUtils.degToRad(-10); // -10° vista frontale, gambe nella montagna
-  archGroup.position.y -= 1.0; // abbassa base, gambe dentro il terreno
+  archGroup.rotation.y += THREE.MathUtils.degToRad(120); // Alto
+  archGroup.rotation.z += THREE.MathUtils.degToRad(-25); // Frontale 
+  archGroup.rotation.x = THREE.MathUtils.degToRad(0);  // Laterale
+  archGroup.position.y -= 5.0; 
+  archGroup.position.x -= 6.0; 
+  archGroup.position.z += 4.0; //avanti
   scene.add(archGroup);
 
   if (elevationProfile && typeof elevationProfile.setTrackData === 'function') {
