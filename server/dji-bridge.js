@@ -102,7 +102,10 @@ async function openSerial(path) {
         serial.write(HANDSHAKE);
         await new Promise(r => setTimeout(r, 100));
       }
-      let buf = Buffer.alloc(0);
+      // Invia handshake ogni 10ms come Python (mantiene stream attivo)
+  const hsInterval = setInterval(() => { try { serial.write(HANDSHAKE); } catch {} }, 10);
+  serial.on('close', () => clearInterval(hsInterval));
+  let buf = Buffer.alloc(0);
       let packetCount = 0;
       let lastLog = Date.now();
       serial.on('data', (chunk) => {
@@ -111,25 +114,33 @@ async function openSerial(path) {
           lastLog = Date.now();
         }
         buf = Buffer.concat([buf, chunk]);
-        while (buf.length >= 38) {
+        while (buf.length >= 3) {
           let start = buf.indexOf(0x55);
-          if (start === -1) { 
-            // log raw per debug se non troviamo header
+          if (start === -1) {
             if (buf.length > 100) {
               dbg(`Nessun header 0x55 in ${buf.length} byte, dump: ${buf.slice(0, 32).toString('hex')}`);
               buf = Buffer.alloc(0);
             }
-            break; 
+            break;
           }
           if (start > 0) buf = buf.slice(start);
-          if (buf.length < 38) break;
-          const packet = buf.slice(0, 38);
-          buf = buf.slice(38);
+          if (buf.length < 3) break;
+          const ph = buf.readUInt16LE(1);
+          const pl = ph & 0x03FF; // 10-bit length
+          if (pl < 3 || pl > 100) { buf = buf.slice(1); continue; }
+          if (buf.length < pl) break; // aspetta resto pacchetto
+          const packet = buf.slice(0, pl);
+          buf = buf.slice(pl);
           packetCount++;
-          if (packetCount % 50 === 0) log(`Pacchetti ricevuti: ${packetCount}`);
+          if (packetCount % 50 === 0) log(`Pacchetti ricevuti: ${packetCount} len=${pl}`);
+          if (pl !== 38) {
+            // non è pacchetto stick, ignora
+            if (DEBUG) dbg(`Pacchetto len ${pl} ignorato (non 38): ${packet.toString('hex').slice(0, 48)}`);
+            continue;
+          }
           const sticks = parsePacket(packet);
           if (!sticks) {
-            if (DEBUG) dbg(`Pacchetto scartato: ${packet.toString('hex').slice(0, 64)}`);
+            if (DEBUG) dbg(`Pacchetto 38 scartato: ${packet.toString('hex').slice(0, 64)}`);
             continue;
           }
           const { lx, ly, rx, ry, raw } = sticks;
