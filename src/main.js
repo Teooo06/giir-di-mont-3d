@@ -57,6 +57,45 @@ controls.maxPolarAngle = Math.PI * 0.485;
 // YOU-24: gamepad edge state — ponytail: 4 bools for D-pad, no lib
 let gamepadPrevDpad = [false, false, false, false];
 
+// CONTROLLER virtuale — riceve da /controller.html via WS 9998 + BroadcastChannel (stesso device)
+let controllerActive = false;
+let controllerOrbit = { x: 0, y: 0 };
+let controllerZoomPan = { x: 0, y: 0 };
+try {
+  const ctrlChannel = new BroadcastChannel('giir_controller_channel');
+  ctrlChannel.onmessage = (e) => {
+    const d = e.data;
+    if (!d || d.type !== 'controller') return;
+    handleControllerMessage(d);
+  };
+} catch {}
+let ctrlWs = null;
+function connectControllerWs() {
+  try {
+    const url = `ws://${location.hostname || 'localhost'}:9998`;
+    ctrlWs = new WebSocket(url);
+    ctrlWs.onmessage = (ev) => {
+      try {
+        const d = JSON.parse(ev.data);
+        if (d.type === 'controller') handleControllerMessage(d);
+      } catch {}
+    };
+    ctrlWs.onclose = () => setTimeout(connectControllerWs, 2000);
+  } catch {}
+}
+connectControllerWs();
+function handleControllerMessage(d) {
+  if (d.action === 'activate') controllerActive = !!d.active;
+  if (d.action === 'orbit') controllerOrbit = { x: d.x || 0, y: d.y || 0 };
+  if (d.action === 'zoompan') controllerZoomPan = { x: d.x || 0, y: d.y || 0 };
+  if (d.action === 'scene' && d.scene) setScene(d.scene);
+  if (d.action === 'timeline' && Number.isFinite(d.km)) {
+    const ath = raceManager.getSelectedAthlete();
+    if (ath) { raceManager.updateAthleteKm(ath.id, d.km); simElapsedSec = kmToElapsedSec(d.km); }
+  }
+  if (d.action === 'playpause') isAutoPlaying = !isAutoPlaying;
+}
+
 // Illuminazione Montana Naturale e Chiara (luce bianca pulita, niente dominante gialla)
 const hemiLight = new THREE.HemisphereLight('#f2f8ff', '#2d3b32', 2.2);
 scene.add(hemiLight);
@@ -1122,6 +1161,31 @@ const clock = new THREE.Clock();
 function frame() {
   requestAnimationFrame(frame);
   const dt = clock.getDelta();
+  // CONTROLLER virtuale — joystick da telefono
+  if (controllerActive) {
+    if (Math.abs(controllerOrbit.x) > 0.05 || Math.abs(controllerOrbit.y) > 0.05) {
+      const spherical = new THREE.Spherical();
+      spherical.setFromVector3(camera.position.clone().sub(controls.target));
+      spherical.theta -= controllerOrbit.x * 0.06;
+      spherical.phi -= controllerOrbit.y * 0.05;
+      spherical.phi = THREE.MathUtils.clamp(spherical.phi, 0.15, Math.PI * 0.48);
+      spherical.makeSafe();
+      camera.position.setFromSpherical(spherical).add(controls.target);
+      controls.update();
+    }
+    if (Math.abs(controllerZoomPan.y) > 0.05) {
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      const dist = camera.position.distanceTo(controls.target);
+      const newDist = THREE.MathUtils.clamp(dist - controllerZoomPan.y * 6, 40, 2600);
+      camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
+    }
+    if (Math.abs(controllerZoomPan.x) > 0.05) {
+      const camDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+      const right = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
+      controls.target.add(right.multiplyScalar(controllerZoomPan.x * 4));
+      camera.position.add(right.multiplyScalar(controllerZoomPan.x * 4));
+    }
+  }
 
     if (routeCurve) {
       if (isAutoPlaying) {

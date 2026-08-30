@@ -170,6 +170,9 @@ wss.on('connection', (ws) => {
           if (data.sourceName && (!ndiSender || ndiSender.sourceName() !== data.sourceName)) {
             await initNdi(data.sourceName);
           }
+        } else if (data.type === 'controller') {
+          // relay controller to all other clients (main 3D)
+          try { wss.clients.forEach(c => { if (c !== ws && c.readyState === 1) c.send(JSON.stringify(data)); }); } catch {}
         }
       } catch (e) {}
       return;

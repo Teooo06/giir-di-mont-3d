@@ -502,6 +502,18 @@ Editor 3D isolato locale only, non esposto in NDI, per modifica persistente di G
 
 Persistenza: `localStorage giir_edit_v1` auto-save 3s, `Esporta` scarica `giir-di-mont-32-km.gpx` + `checkpoints.json` + `arch.json` + `trees.json` (copia manuale in `public/data/` + git commit). Guard arco definitivo: confirm prima di sovrascrivere 120°/-25°. Isolamento: no `BroadcastChannel`, no `ndi-streamer`, no scrittura `giir_race_data_v2`.
 
+## 15. Controller virtuale joystick da telefono `/controller` (feature/controller — 2026-08-30)
+
+Controller locale per muovere la telecamera del mondo sul PC dal telefono, test virtuale in attesa di controller fisico.
+
+| Ticket | Titolo | Blocked by | File |
+|--------|--------|------------|------|
+| CONTROLLER-01 #179 | scaffolding controller.html + WS relay | — | `controller.html`, `src/controller.js`, `server/ndi-service.js`, `vite.config.js` |
+| CONTROLLER-02 #180 | joystick orbit/zoompan in main.js | 01 | `src/main.js` controllerActive + spherical |
+| CONTROLLER-03 #181 | scene + timeline + play da controller | 01 | `controller.html` scene/timeline, `src/main.js` handleControllerMessage |
+
+Architettura: `controller.html` apre su telefono via `http://<pc-ip>:5173/controller.html` (stessa LAN), connette a `ws://<pc-ip>:9998` (stesso WS NDI). Due joystick virtuali (sinistro orbita, destro zoom/pan) + `Attiva Controllo` + bottoni scene 1-4 + slider timeline. `server/ndi-service.js` fa relay `type:controller` a tutti i client tranne mittente. `src/main.js` ascolta sia `BroadcastChannel('giir_controller_channel')` (stesso device) che `WebSocket` (telefono) e applica in `frame()` con `THREE.Spherical`.
+
 > **Rule while this map is live:** One ticket at a time. Finish → verify → commit → PR → merge → next. No parallel tickets touching the same file. See `wayfinder/SKILL.md:105` `never resolve more than one ticket per session`.
 
 ---
