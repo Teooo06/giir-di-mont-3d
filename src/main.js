@@ -57,13 +57,16 @@ controls.maxPolarAngle = Math.PI * 0.485;
 // YOU-24: gamepad edge state — ponytail: 4 bools for D-pad, no lib
 let gamepadPrevDpad = [false, false, false, false];
 
-// CONTROLLER virtuale — DJI style, zoom via slider + speed
+// CONTROLLER virtuale — DJI style drone libero (non orbita) + slider zoom/tilt
 let controllerActive = false;
-let controllerOrbit = { x: 0, y: 0 };
+let controllerOrbit = { x: 0, y: 0 }; // left stick: yaw (x), throttle (y) — per compatibilità orbita
 let controllerZoomPan = { x: 0, y: 0 };
-let controllerPan = { x: 0, y: 0 };
+let controllerPan = { x: 0, y: 0 }; // right stick: x=strafe, y=forward
 let controllerZoomDist = null;
 let controllerSpeed = 1.0;
+let controllerTilt = 0; // ghiera: -1..1 per tilt camera
+// Drone libero: left Y=throttle up/down, left X=yaw, right Y=forward/back, right X=strafe, ghiera=tilt
+let droneThrottle = 0, droneYaw = 0, dronePitch = 0, droneRoll = 0;
 try {
   const ctrlChannel = new BroadcastChannel('giir_controller_channel');
   ctrlChannel.onmessage = (e) => {
@@ -89,12 +92,20 @@ function connectControllerWs() {
 connectControllerWs();
 function handleControllerMessage(d) {
   if (d.action === 'activate') controllerActive = !!d.active;
-  if (d.action === 'orbit') { controllerOrbit = { x: d.x || 0, y: d.y || 0 }; controllerActive = true; }
+  if (d.action === 'orbit') {
+    controllerOrbit = { x: d.x || 0, y: d.y || 0 };
+    droneYaw = d.x || 0; droneThrottle = d.y || 0;
+    if (d.x || d.y) controllerActive = true;
+  }
   if (d.action === 'zoompan') controllerZoomPan = { x: d.x || 0, y: d.y || 0 };
-  if (d.action === 'pan') { controllerPan = { x: d.x || 0, y: d.y || 0 }; controllerActive = true; }
+  if (d.action === 'pan') {
+    controllerPan = { x: d.x || 0, y: d.y || 0 };
+    droneRoll = d.x || 0; dronePitch = d.y || 0;
+    if (d.x || d.y) controllerActive = true;
+  }
+  if (d.action === 'tilt' && Number.isFinite(d.value)) { controllerTilt = d.value; controllerActive = true; }
   if (d.action === 'zoom' && Number.isFinite(d.dist)) controllerZoomDist = d.dist;
   if (d.action === 'zoom' && Number.isFinite(d.delta)) {
-    // ghiera DJI: delta -1..1, applica zoom immediato
     const dir = camera.position.clone().sub(controls.target).normalize();
     const dist = camera.position.distanceTo(controls.target);
     const nd = THREE.MathUtils.clamp(dist - d.delta * 18, 40, 1200);
@@ -1175,10 +1186,61 @@ const clock = new THREE.Clock();
 function frame() {
   requestAnimationFrame(frame);
   const dt = clock.getDelta();
-  // CONTROLLER virtuale — DJI style + speed slider (default 1.0, range 0.3-2.5)
+  // CONTROLLER drone libero — non tocca OrbitControls del mouse, solo controller
   if (controllerActive) {
     const s = controllerSpeed;
-    if (Math.abs(controllerOrbit.x) > 0.03 || Math.abs(controllerOrbit.y) > 0.03) {
+    const moveSpeed = 12 * s * dt * 60; // scala con dt per framerate indipendente
+    const rotSpeed = 0.9 * s * dt * 60;
+    // left stick: yaw (x) ruota camera su asse Y, throttle (y) alza/abbassa
+    if (Math.abs(droneYaw) > 0.05) {
+      const axis = new THREE.Vector3(0, 1, 0);
+      const angle = -droneYaw * rotSpeed * 0.04;
+      const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+      dir.applyAxisAngle(axis, angle);
+      camera.position.copy(controls.target).add(dir);
+      // ruota anche up se necessario (per ora solo yaw)
+    }
+    if (Math.abs(droneThrottle) > 0.05) {
+      const up = new THREE.Vector3(0, 1, 0);
+      const delta = up.multiplyScalar(droneThrottle * moveSpeed * 0.7);
+      camera.position.add(delta);
+      controls.target.add(delta);
+    }
+    // right stick: pitch avanti/indietro, roll laterale
+    if (Math.abs(dronePitch) > 0.05) {
+      const forward = new THREE.Vector3();
+      camera.getWorldDirection(forward);
+      forward.y = 0; forward.normalize();
+      const delta = forward.multiplyScalar(dronePitch * moveSpeed);
+      camera.position.add(delta);
+      controls.target.add(delta);
+    }
+    if (Math.abs(droneRoll) > 0.05) {
+      const forward = new THREE.Vector3();
+      camera.getWorldDirection(forward);
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+      const delta = right.multiplyScalar(droneRoll * moveSpeed);
+      camera.position.add(delta);
+      controls.target.add(delta);
+    }
+    // ghiera tilt
+    if (Math.abs(controllerTilt) > 0.08) {
+      const dir = new THREE.Vector3().subVectors(controls.target, camera.position);
+      const dist = dir.length();
+      const axis = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+      const angle = controllerTilt * rotSpeed * 0.025;
+      dir.applyAxisAngle(axis, angle);
+      controls.target.copy(camera.position).add(dir.normalize().multiplyScalar(dist));
+    }
+    // zoom via slider (se presente) — lerp dolce
+    if (controllerZoomDist !== null) {
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      const curDist = camera.position.distanceTo(controls.target);
+      const newDist = THREE.MathUtils.clamp(THREE.MathUtils.lerp(curDist, controllerZoomDist, 0.12), 40, 1200);
+      camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
+    }
+    // fallback orbita per compatibilità telefono vecchio (se drone* a 0 ma orbit non zero)
+    if ((Math.abs(controllerOrbit.x) > 0.05 || Math.abs(controllerOrbit.y) > 0.05) && Math.abs(droneYaw) < 0.05 && Math.abs(droneThrottle) < 0.05) {
       const spherical = new THREE.Spherical();
       spherical.setFromVector3(camera.position.clone().sub(controls.target));
       spherical.theta -= controllerOrbit.x * 0.06 * s;
@@ -1186,35 +1248,8 @@ function frame() {
       spherical.phi = THREE.MathUtils.clamp(spherical.phi, 0.15, Math.PI * 0.48);
       spherical.makeSafe();
       camera.position.setFromSpherical(spherical).add(controls.target);
-      controls.update();
     }
-    if (controllerZoomDist !== null) {
-      const dir = camera.position.clone().sub(controls.target).normalize();
-      const curDist = camera.position.distanceTo(controls.target);
-      const newDist = THREE.MathUtils.clamp(THREE.MathUtils.lerp(curDist, controllerZoomDist, 0.12), 40, 2600);
-      camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
-    } else if (Math.abs(controllerZoomPan.y) > 0.05) {
-      const dir = camera.position.clone().sub(controls.target).normalize();
-      const dist = camera.position.distanceTo(controls.target);
-      const newDist = THREE.MathUtils.clamp(dist - controllerZoomPan.y * 14 * s, 40, 2600);
-      camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
-    }
-    const panX = controllerPan.x !== 0 ? controllerPan.x : controllerZoomPan.x;
-    const panY = controllerPan.y;
-    if (Math.abs(panX) > 0.05) {
-      const camDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
-      const right = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
-      const delta = right.multiplyScalar(panX * 6 * s);
-      controls.target.add(delta);
-      camera.position.add(delta);
-    }
-    if (Math.abs(panY) > 0.05) {
-      const forward = new THREE.Vector3().subVectors(controls.target, camera.position).normalize();
-      forward.y = 0; forward.normalize();
-      const delta = forward.multiplyScalar(panY * 6 * s);
-      controls.target.add(delta);
-      camera.position.add(delta);
-    }
+    controls.update();
   }
 
     if (routeCurve) {

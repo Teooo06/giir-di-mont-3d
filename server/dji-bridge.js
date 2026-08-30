@@ -156,15 +156,12 @@ async function openSerial(path) {
           // invia sempre anche 0,0 per fermare quando rilasci
           sendController({ action: 'orbit', x: -lxD * 0.5, y: lyD * 0.5 });
           sendController({ action: 'pan', x: -rxD * 0.5, y: ryD * 0.5 });
-          // ghiera dietro per zoom (camera dial) — offset 25 in pacchetto 38
+          // ghiera dietro per tilt camera (non zoom) — invia tilt -1..1
           const camRaw = packet.readUInt16LE(25);
           const camNorm = Math.max(-1, Math.min(1, (camRaw - 1024) / 660));
           const camD = dead(camNorm);
-          if (Math.abs(camD) > 0.1) {
-            const zoomDir = camD > 0 ? 1 : -1;
-            sendController({ action: 'zoom', dist: null, delta: zoomDir * 0.7 });
-            sendController({ action: 'zoompan', x: 0, y: camD * 0.5 });
-          }
+          // invia tilt sempre per fermare quando torna a centro
+          sendController({ action: 'tilt', value: camD });
         }
       });
       serial.on('error', (e) => log('Seriale errore', e.message));
