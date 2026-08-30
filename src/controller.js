@@ -196,12 +196,12 @@ const stickRight = document.querySelector('#stick-right');
 
 if (joyLeft && stickLeft) {
   makeJoystick(joyLeft, stickLeft, (x, y) => {
-    send({ action: 'orbit', x: x * speedMult, y: y * speedMult });
+    send({ action: 'orbit', x: -x * speedMult, y: y * speedMult });
   });
 }
 if (joyRight && stickRight) {
   makeJoystick(joyRight, stickRight, (x, y) => {
-    send({ action: 'pan', x: x * speedMult, y: y * speedMult });
+    send({ action: 'pan', x: -x * speedMult, y: y * speedMult });
   });
 }
 

@@ -151,11 +151,9 @@ async function openSerial(path) {
           dbg(`raw lx=${raw.lx} ly=${raw.ly} rx=${raw.rx} ry=${raw.ry} -> norm lx=${lx.toFixed(2)} ly=${ly.toFixed(2)} rx=${rx.toFixed(2)} ry=${ry.toFixed(2)}`);
           const dz = 0.08;
           const dead = (v) => Math.abs(v) < dz ? 0 : v;
-          // invertiti su/giù e sx/dx per DJI come richiesto + più lento (0.5x)
           const lxD = dead(lx), lyD = dead(ly), rxD = dead(rx), ryD = dead(ry);
-          // invia sempre anche 0,0 per fermare quando rilasci
-          sendController({ action: 'orbit', x: -lxD * 0.5, y: lyD * 0.5 });
-          sendController({ action: 'pan', x: -rxD * 0.5, y: ryD * 0.5 });
+          sendController({ action: 'orbit', x: lxD * 0.5, y: lyD * 0.5 });
+          sendController({ action: 'pan', x: rxD * 0.5, y: ryD * 0.5 });
           // ghiera dietro per tilt camera (non zoom) — invia tilt -1..1
           const camRaw = packet.readUInt16LE(25);
           const camNorm = Math.max(-1, Math.min(1, (camRaw - 1024) / 660));
