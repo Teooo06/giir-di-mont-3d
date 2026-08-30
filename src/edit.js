@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { TerrainManager } from './terrain-manager.js';
 import { EditHistory } from './edit/history.js';
+import { VersionManager } from './version-manager.js';
 import { RaceManager } from './race-manager.js';
 import { SettingsManager } from './settings-manager.js';
 import { ElevationProfile } from './elevation-profile.js';
@@ -83,6 +84,8 @@ const terrainManager = new TerrainManager({ scene, style: settingsManager.settin
 const elevationProfile = new ElevationProfile('#elevation-profile-container', { accentColor: settingsManager.settings.themeColor });
 const raceManager = new RaceManager({ onStateChange: () => {} });
 const editHistory = new EditHistory(100);
+const versionManager = new VersionManager();
+let autoVersionDebounce = null;
 
 // EDIT-07: snapshot helpers
 function captureEditState() {
@@ -125,7 +128,22 @@ function restoreEditState(s) {
   const st = document.querySelector('#edit-status');
   if (st) st.textContent = 'stato ripristinato';
 }
-function pushHistory() { try { editHistory.push(captureEditState()); updateHistoryUI(); } catch {} }
+function pushHistory() {
+  try {
+    const snap = captureEditState();
+    editHistory.push(snap);
+    updateHistoryUI();
+    // auto-version debounce 2s
+    clearTimeout(autoVersionDebounce);
+    autoVersionDebounce = setTimeout(() => {
+      try {
+        versionManager.createVersion(snap, `auto ${new Date().toLocaleTimeString('it-IT')}`);
+        try { new BroadcastChannel('giir_version_channel').postMessage({ type: 'VERSION_UPDATED' }); } catch {}
+        updateHistoryUI();
+      } catch {}
+    }, 2000);
+  } catch {}
+}
 function updateHistoryUI() {
   const u = document.querySelector('#btn-undo'); const u2 = document.querySelector('#btn-undo2');
   const r = document.querySelector('#btn-redo'); const r2 = document.querySelector('#btn-redo2');
@@ -133,17 +151,28 @@ function updateHistoryUI() {
   [u, u2].forEach(b => { if (b) { b.disabled = !canU; b.style.opacity = canU ? '1' : '0.4'; }});
   [r, r2].forEach(b => { if (b) { b.disabled = !canR; b.style.opacity = canR ? '1' : '0.4'; }});
   const st = document.querySelector('#edit-status');
-  if (st) st.textContent = `undo:${editHistory.undoStack.length} redo:${editHistory.redoStack.length} · auto-save giir_edit_v1`;
+  const verCount = versionManager.list().length;
+  if (st) st.textContent = `undo:${editHistory.undoStack.length} redo:${editHistory.redoStack.length} · versioni:${verCount} · auto-save`;
 }
 function saveEditLocal() {
-  try { localStorage.setItem('giir_edit_v1', JSON.stringify(captureEditState())); const st = document.querySelector('#edit-status'); if (st) st.textContent = 'salvato locale giir_edit_v1 ' + new Date().toLocaleTimeString(); } catch (e) { console.warn('save fail', e); }
+  try {
+    const snap = captureEditState();
+    localStorage.setItem('giir_edit_v1', JSON.stringify(snap));
+    versionManager.createVersion(snap, `salvataggio manuale ${new Date().toLocaleTimeString('it-IT')}`);
+    try { new BroadcastChannel('giir_version_channel').postMessage({ type: 'VERSION_UPDATED' }); } catch {}
+    const st = document.querySelector('#edit-status');
+    if (st) st.textContent = 'salvato versione ' + new Date().toLocaleTimeString();
+    updateHistoryUI();
+  } catch (e) { console.warn('save fail', e); }
 }
 function loadEditLocal() {
   try {
+    const latest = versionManager.getLatest();
+    if (latest && latest.snapshot) return latest.snapshot;
     const raw = localStorage.getItem('giir_edit_v1');
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch { return null; }
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
 }
 function doUndo() { const cur = captureEditState(); const prev = editHistory.undo(cur); if (prev) { restoreEditState(prev); updateHistoryUI(); } }
 function doRedo() { const cur = captureEditState(); const nxt = editHistory.redo(cur); if (nxt) { restoreEditState(nxt); updateHistoryUI(); } }
