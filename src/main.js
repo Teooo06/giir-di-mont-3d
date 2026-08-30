@@ -572,117 +572,17 @@ function parseGpxAndBuild(xmlText, filename = 'giir-di-mont-32-km.gpx') {
   setScene('overview', { instant: true });
 }
 
-function isValidTrackForVersion(points) {
-  if (!points || points.length < 500) return false;
-  const toRad = (d) => d * Math.PI / 180;
-  const hav = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(a));
-  };
-  let total = 0, maxJump = 0;
-  for (let i = 1; i < points.length; i++) {
-    const d = hav(points[i - 1].lat, points[i - 1].lon, points[i].lat, points[i].lon);
-    total += d;
-    if (d > maxJump) maxJump = d;
-    if (d > 800) return false;
-  }
-  if (total < 20000 || total > 50000) return false;
-  if (maxJump > 500) return false;
-  return true;
-}
-function correctTrackDirection(points, checkpoints) {
-  if (!points || points.length < 2 || !checkpoints || checkpoints.length < 2) return points;
-  const toRad = (d) => d * Math.PI / 180;
-  const hav = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(a));
-  };
-  const cps = [...checkpoints].sort((a, b) => a.km - b.km);
-  const findIdx = (track, lat, lon) => {
-    let best = 0, bestD = Infinity;
-    for (let i = 0; i < track.length; i++) {
-      const d = hav(lat, lon, track[i].lat, track[i].lon);
-      if (d < bestD) { bestD = d; best = i; }
-    }
-    return best;
-  };
-  const scoreFor = (track) => {
-    const idxs = cps.map(cp => findIdx(track, cp.lat, cp.lon));
-    // per loop: ruota in modo che start (km 0) sia a 0
-    const startIdx = idxs[0];
-    const rotated = idxs.map(idx => (idx - startIdx + track.length) % track.length);
-    let score = 0;
-    for (let i = 1; i < rotated.length; i++) if (rotated[i] > rotated[i - 1]) score++;
-    return score;
-  };
-  const scoreOrig = scoreFor(points);
-  const rev = [...points].reverse();
-  const scoreRev = scoreFor(rev);
-  if (scoreRev > scoreOrig) return rev;
-  return points;
-}
-// Inizializza Terreno e GPX all'avvio — con versioning automatico
+// Inizializza Terreno e GPX all'avvio — RIPRISTINO ORIGINALE (prima delle modifiche editor)
 async function initWorld() {
   const trackStatus = document.querySelector('#track-status');
   try {
     if (trackStatus) trackStatus.textContent = 'Caricamento terreno 3D di Premana...';
     await terrainManager.loadTerrain('/data/terrain-premana.json');
-    const latest = versionManager.getLatest();
-    if (latest && latest.snapshot && latest.snapshot.rawTrackPoints && latest.snapshot.rawTrackPoints.length >= 2) {
-      let candidate = JSON.parse(JSON.stringify(latest.snapshot.rawTrackPoints));
-      candidate = correctTrackDirection(candidate, latest.snapshot.checkpoints || raceManager.checkpoints);
-      if (!isValidTrackForVersion(candidate)) {
-        console.warn('[Version] tracciato versione corrotto (salto >800m o lunghezza anomala), ripristino originale e pulizia versioni');
-        versionManager.clearAll();
-        try { localStorage.removeItem('giir_edit_v1'); } catch {}
-        if (trackStatus) trackStatus.textContent = 'Versione corrotta — ripristino originale...';
-        const res = await fetch('/data/giir-di-mont-32-km.gpx');
-        if (res.ok) { const gpxText = await res.text(); parseGpxAndBuild(gpxText, 'Giir di Mont 32 km (Ufficiale)'); }
-        return;
-      }
-      if (trackStatus) trackStatus.textContent = `Caricamento versione ${latest.label}...`;
-      rawTrackPoints = candidate;
-      if (latest.snapshot.checkpoints) {
-        raceManager.checkpoints = JSON.parse(JSON.stringify(latest.snapshot.checkpoints));
-        // ordina checkpoint per km crescente (evita marker a caso se km disordinati)
-        raceManager.checkpoints.sort((a, b) => a.km - b.km);
-      }
-      rebuildTrack3D();
-      createProgressMarker();
-      generateAlpineForest();
-      // HOTFIX: mantieni arco definitivo (non sovrascrivere da versione) — utente ha fissato 120/-25/0 + -5/-6/+4
-      // se vuoi ripristinare arch da versione, modifica /edit e salva nuova versione con arch corretto
-      // sovrascrivi alberi da versione
-      if (latest.snapshot.trees && latest.snapshot.trees.length && treesMesh) {
-        const m = new THREE.Matrix4();
-        if (latest.snapshot.trees.length !== treesMesh.count) {
-          const treeGeo = new THREE.ConeGeometry(2.4, 11, 5); treeGeo.translate(0, 5.5, 0);
-          const treeMat = new THREE.MeshStandardMaterial({ color: '#1a3826', roughness: 0.9, metalness: 0.0 });
-          const newMesh = new THREE.InstancedMesh(treeGeo, treeMat, latest.snapshot.trees.length);
-          latest.snapshot.trees.forEach((arr, i) => { m.fromArray(arr); newMesh.setMatrixAt(i, m); });
-          newMesh.instanceMatrix.needsUpdate = true; newMesh.castShadow = true; newMesh.receiveShadow = true;
-          scene.remove(treesMesh); treesMesh.geometry.dispose();
-          treesMesh = newMesh; scene.add(treesMesh);
-        } else {
-          latest.snapshot.trees.forEach((arr, i) => { m.fromArray(arr); treesMesh.setMatrixAt(i, m); });
-          treesMesh.instanceMatrix.needsUpdate = true;
-        }
-      }
-      if (trackStatus) trackStatus.textContent = `Versione ${latest.label} (${rawTrackPoints.length} punti)`;
-      setScene('overview', { instant: true });
-    } else {
-      if (trackStatus) trackStatus.textContent = 'Caricamento tracciato GPX...';
-      const res = await fetch('/data/giir-di-mont-32-km.gpx');
-      if (res.ok) {
-        const gpxText = await res.text();
-        parseGpxAndBuild(gpxText, 'Giir di Mont 32 km (Ufficiale)');
-      }
+    if (trackStatus) trackStatus.textContent = 'Caricamento tracciato GPX...';
+    const res = await fetch('/data/giir-di-mont-32-km.gpx');
+    if (res.ok) {
+      const gpxText = await res.text();
+      parseGpxAndBuild(gpxText, 'Giir di Mont 32 km (Ufficiale)');
     }
   } catch (err) {
     console.error('Errore caricamento mondo 3D:', err);
@@ -690,45 +590,6 @@ async function initWorld() {
   }
 }
 initWorld();
-// ascolta cambi versione da /edit o /impostazioni
-try {
-  const versionChannel = new BroadcastChannel('giir_version_channel');
-  versionChannel.onmessage = (e) => {
-    if (e.data?.type === 'VERSION_UPDATED') {
-      const latest = versionManager.getLatest();
-      if (latest && latest.snapshot) {
-        let candidate = JSON.parse(JSON.stringify(latest.snapshot.rawTrackPoints));
-        candidate = correctTrackDirection(candidate, latest.snapshot.checkpoints || raceManager.checkpoints);
-        if (!isValidTrackForVersion(candidate)) {
-          console.warn('[Version] broadcast versione corrotta — ignorata');
-          return;
-        }
-        rawTrackPoints = candidate;
-        if (latest.snapshot.checkpoints) {
-          raceManager.checkpoints = JSON.parse(JSON.stringify(latest.snapshot.checkpoints));
-          raceManager.checkpoints.sort((a, b) => a.km - b.km);
-        }
-        rebuildTrack3D(); generateAlpineForest();
-        // HOTFIX: mantieni arco definitivo, non sovrascrivere da versione
-        if (latest.snapshot.trees && latest.snapshot.trees.length && treesMesh) {
-          const m = new THREE.Matrix4();
-          if (latest.snapshot.trees.length !== treesMesh.count) {
-            const treeGeo = new THREE.ConeGeometry(2.4, 11, 5); treeGeo.translate(0, 5.5, 0);
-            const treeMat = new THREE.MeshStandardMaterial({ color: '#1a3826', roughness: 0.9, metalness: 0.0 });
-            const newMesh = new THREE.InstancedMesh(treeGeo, treeMat, latest.snapshot.trees.length);
-            latest.snapshot.trees.forEach((arr, i) => { m.fromArray(arr); newMesh.setMatrixAt(i, m); });
-            newMesh.instanceMatrix.needsUpdate = true; newMesh.castShadow = true; newMesh.receiveShadow = true;
-            scene.remove(treesMesh); treesMesh.geometry.dispose();
-            treesMesh = newMesh; scene.add(treesMesh);
-          } else {
-            latest.snapshot.trees.forEach((arr, i) => { m.fromArray(arr); treesMesh.setMatrixAt(i, m); });
-            treesMesh.instanceMatrix.needsUpdate = true;
-          }
-        }
-      }
-    }
-  };
-} catch {}
 
 // Input file GPX alternativo
 document.querySelector('#gpx-input')?.addEventListener('change', async (e) => {
