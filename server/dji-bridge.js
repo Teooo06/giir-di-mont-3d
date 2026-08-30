@@ -45,7 +45,11 @@ async function findDjiPort() {
 function connectWs() {
   log(`Connessione WS a ${WS_URL} ...`);
   ws = new WebSocket(WS_URL);
-  ws.on('open', () => { wsReady = true; log('WS connesso'); });
+  ws.on('open', () => {
+    wsReady = true;
+    log('WS connesso — invio activate per DJI');
+    try { ws.send(JSON.stringify({ type: 'controller', action: 'activate', active: true })); } catch {}
+  });
   ws.on('close', () => { wsReady = false; log('WS disconnesso, riconnetto in 2s'); setTimeout(connectWs, 2000); });
   ws.on('error', (e) => { log('WS errore', e.message); });
 }

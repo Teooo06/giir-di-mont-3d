@@ -89,9 +89,9 @@ function connectControllerWs() {
 connectControllerWs();
 function handleControllerMessage(d) {
   if (d.action === 'activate') controllerActive = !!d.active;
-  if (d.action === 'orbit') controllerOrbit = { x: d.x || 0, y: d.y || 0 };
+  if (d.action === 'orbit') { controllerOrbit = { x: d.x || 0, y: d.y || 0 }; if (d.x || d.y) controllerActive = true; }
   if (d.action === 'zoompan') controllerZoomPan = { x: d.x || 0, y: d.y || 0 };
-  if (d.action === 'pan') controllerPan = { x: d.x || 0, y: d.y || 0 };
+  if (d.action === 'pan') { controllerPan = { x: d.x || 0, y: d.y || 0 }; if (d.x || d.y) controllerActive = true; }
   if (d.action === 'zoom' && Number.isFinite(d.dist)) controllerZoomDist = d.dist;
   if (d.action === 'speed' && Number.isFinite(d.value)) controllerSpeed = Math.max(0.3, Math.min(2.5, d.value));
   if (d.action === 'scene' && d.scene) setScene(d.scene);
