@@ -9,7 +9,8 @@ const zoomSlider = document.querySelector('#zoom-slider');
 const zoomVal = document.querySelector('#zoom-val');
 const speedSlider = document.querySelector('#speed-slider');
 const speedVal = document.querySelector('#speed-val');
-let speedMult = 1.0;
+let speedMult = 0.4;
+if (speedSlider && speedVal) speedVal.textContent = speedMult.toFixed(1) + '×';
 
 let ws = null;
 let active = false;

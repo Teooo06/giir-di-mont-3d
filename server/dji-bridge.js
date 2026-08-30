@@ -16,6 +16,9 @@ let ws = null;
 let wsReady = false;
 let serial = null;
 let lastSend = 0;
+let djiSpeedIdx = 1; // 0:0.2, 1:0.4, 2:0.8
+const djiSpeeds = [0.2, 0.4, 0.8];
+let lastBtnState = 0;
 
 function log(...args) { console.log('[DJI-Bridge]', ...args); }
 function dbg(...args) { if (DEBUG) console.log('[DJI-Bridge dbg]', ...args); }
@@ -152,14 +155,34 @@ async function openSerial(path) {
           const dz = 0.08;
           const dead = (v) => Math.abs(v) < dz ? 0 : v;
           const lxD = dead(lx), lyD = dead(ly), rxD = dead(rx), ryD = dead(ry);
-          sendController({ action: 'orbit', x: lxD * 0.5, y: lyD * 0.5 });
-          sendController({ action: 'pan', x: rxD * 0.5, y: ryD * 0.5 });
-          // ghiera dietro per tilt camera (non zoom) — invia tilt -1..1
+          sendController({ action: 'orbit', x: lxD * 0.2, y: lyD * 0.2 });
+          sendController({ action: 'pan', x: rxD * 0.2, y: ryD * 0.2 });
+          // ghiera dietro per tilt camera
           const camRaw = packet.readUInt16LE(25);
           const camNorm = Math.max(-1, Math.min(1, (camRaw - 1024) / 660));
           const camD = dead(camNorm);
-          // invia tilt sempre per fermare quando torna a centro
           sendController({ action: 'tilt', value: camD });
+          // debug tasti DJI: premi i tasti e guarda i byte 28-35
+          const btnHex = packet.slice(28, 36).toString('hex');
+          if (btnHex !== '0000000000000000') dbg(`btn 28-36: ${btnHex}`);
+          // mappatura tasti DJI — prova a indovinare, se non va dimmi i log e affino
+          const b28 = packet[28] || 0, b29 = packet[29] || 0, b30 = packet[30] || 0;
+          const btnNow = (b28 << 16) | (b29 << 8) | b30;
+          if (btnNow !== lastBtnState) {
+            // selettore centrale / dial press o C1/C2 -> cicla speed
+            if ((btnNow & 0x01) && !(lastBtnState & 0x01)) {
+              djiSpeedIdx = (djiSpeedIdx + 1) % djiSpeeds.length;
+              const ns = djiSpeeds[djiSpeedIdx];
+              sendController({ action: 'speed', value: ns });
+              log(`DJI speed -> ${ns}x (selettore centrale)`);
+            }
+            // altri 4 bottoni -> scene 1-4 (proviamo bit 1-4 di b28)
+            if ((btnNow & 0x02) && !(lastBtnState & 0x02)) { sendController({ action: 'scene', scene: 'overview' }); log('DJI btn -> scene overview'); }
+            if ((btnNow & 0x04) && !(lastBtnState & 0x04)) { sendController({ action: 'scene', scene: 'runner' }); log('DJI btn -> scene runner'); }
+            if ((btnNow & 0x08) && !(lastBtnState & 0x08)) { sendController({ action: 'scene', scene: 'checkpoint' }); log('DJI btn -> scene checkpoint'); }
+            if ((btnNow & 0x10) && !(lastBtnState & 0x10)) { sendController({ action: 'scene', scene: 'topdown' }); log('DJI btn -> scene topdown'); }
+            lastBtnState = btnNow;
+          }
         }
       });
       serial.on('error', (e) => log('Seriale errore', e.message));
