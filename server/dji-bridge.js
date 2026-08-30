@@ -151,32 +151,42 @@ async function openSerial(path) {
             continue;
           }
           const { lx, ly, rx, ry, raw } = sticks;
-          dbg(`raw lx=${raw.lx} ly=${raw.ly} rx=${raw.rx} ry=${raw.ry} -> norm lx=${lx.toFixed(2)} ly=${ly.toFixed(2)} rx=${rx.toFixed(2)} ry=${ry.toFixed(2)}`);
+          const isCenter = raw.lx === 1024 && raw.ly === 1024 && raw.rx === 1024 && raw.ry === 1024;
+          if (!isCenter) dbg(`raw lx=${raw.lx} ly=${raw.ly} rx=${raw.rx} ry=${raw.ry} -> norm lx=${lx.toFixed(2)} ly=${ly.toFixed(2)} rx=${rx.toFixed(2)} ry=${ry.toFixed(2)}`);
           const dz = 0.08;
           const dead = (v) => Math.abs(v) < dz ? 0 : v;
           const lxD = dead(lx), lyD = dead(ly), rxD = dead(rx), ryD = dead(ry);
           sendController({ action: 'orbit', x: lxD * 0.2, y: lyD * 0.2 });
           sendController({ action: 'pan', x: rxD * 0.2, y: ryD * 0.2 });
-          // ghiera dietro per tilt camera
           const camRaw = packet.readUInt16LE(25);
           const camNorm = Math.max(-1, Math.min(1, (camRaw - 1024) / 660));
           const camD = dead(camNorm);
           sendController({ action: 'tilt', value: camD });
-          // debug tasti DJI: premi i tasti e guarda i byte 28-35
-          const btnHex = packet.slice(28, 36).toString('hex');
-          if (btnHex !== '0000000000000000') dbg(`btn 28-36: ${btnHex}`);
-          // mappatura tasti DJI — prova a indovinare, se non va dimmi i log e affino
+          // logga solo se sticks non al centro o se ci sono byte diversi dal centro (per tasti)
+          const isCenterSticks = raw.lx === 1024 && raw.ly === 1024 && raw.rx === 1024 && raw.ry === 1024;
+          if (!isCenterSticks) {
+            dbg(`STICK move: lx=${raw.lx} ly=${raw.ly} rx=${raw.rx} ry=${raw.ry}`);
+          }
+          // per tasti, confronta con pacchetto centro e logga diff
+          const centerSticks = { lx: 1024, ly: 1024, rx: 1024, ry: 1024 };
+          const curIsCenter = raw.lx === 1024 && raw.ly === 1024 && raw.rx === 1024 && raw.ry === 1024;
+          if (!curIsCenter) {
+            // già loggato sopra
+          } else {
+            // anche se sticks al centro, controlla se altri byte (tasti) cambiano
+            // usa un center di riferimento per tasti: se packet diverso da quello con tutti 0 nei tasti, logga
+            const btnPart = packet.slice(28, 36).toString('hex');
+            if (btnPart !== '0004000004000004') dbg(`btn non-center: ${btnPart} full:${packet.toString('hex').slice(0,64)}`);
+          }
           const b28 = packet[28] || 0, b29 = packet[29] || 0, b30 = packet[30] || 0;
           const btnNow = (b28 << 16) | (b29 << 8) | b30;
           if (btnNow !== lastBtnState) {
-            // selettore centrale / dial press o C1/C2 -> cicla speed
             if ((btnNow & 0x01) && !(lastBtnState & 0x01)) {
               djiSpeedIdx = (djiSpeedIdx + 1) % djiSpeeds.length;
               const ns = djiSpeeds[djiSpeedIdx];
               sendController({ action: 'speed', value: ns });
               log(`DJI speed -> ${ns}x (selettore centrale)`);
             }
-            // altri 4 bottoni -> scene 1-4 (proviamo bit 1-4 di b28)
             if ((btnNow & 0x02) && !(lastBtnState & 0x02)) { sendController({ action: 'scene', scene: 'overview' }); log('DJI btn -> scene overview'); }
             if ((btnNow & 0x04) && !(lastBtnState & 0x04)) { sendController({ action: 'scene', scene: 'runner' }); log('DJI btn -> scene runner'); }
             if ((btnNow & 0x08) && !(lastBtnState & 0x08)) { sendController({ action: 'scene', scene: 'checkpoint' }); log('DJI btn -> scene checkpoint'); }
