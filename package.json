@@ -7,11 +7,13 @@
     "dev": "concurrently -n \"VITE,NDI\" -c \"cyan,magenta\" \"vite --host\" \"node server/ndi-service.js\"",
     "dev:web": "vite",
     "dev:ndi": "node server/ndi-service.js",
+    "dev:dji": "node server/dji-bridge.js --debug",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "grandi": "^2.0.2",
+    "serialport": "^12.0.0",
     "three": "^0.180.0",
     "ws": "^8.18.0"
   },
