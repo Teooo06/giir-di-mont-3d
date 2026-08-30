@@ -118,17 +118,44 @@ function isValidTrackForVersion(points) {
   if (maxJump > 500) return false;
   return true;
 }
+function correctTrackDirection(points, checkpoints) {
+  if (!points || points.length < 2 || !checkpoints || checkpoints.length < 2) return points;
+  const toRad = (d) => d * Math.PI / 180;
+  const hav = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  };
+  const cps = [...checkpoints].sort((a, b) => a.km - b.km);
+  const findIdx = (track, lat, lon) => {
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i < track.length; i++) {
+      const d = hav(lat, lon, track[i].lat, track[i].lon);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  };
+  const scoreFor = (track) => {
+    const idxs = cps.map(cp => findIdx(track, cp.lat, cp.lon));
+    const startIdx = idxs[0];
+    const rotated = idxs.map(idx => (idx - startIdx + track.length) % track.length);
+    let score = 0;
+    for (let i = 1; i < rotated.length; i++) if (rotated[i] > rotated[i - 1]) score++;
+    return score;
+  };
+  const scoreOrig = scoreFor(points);
+  const rev = [...points].reverse();
+  const scoreRev = scoreFor(rev);
+  if (scoreRev > scoreOrig) return rev;
+  return points;
+}
 function restoreEditState(s) {
   if (!s) return;
   if (s.rawTrackPoints) {
     let cand = JSON.parse(JSON.stringify(s.rawTrackPoints));
-    // fix direzione se invertita
-    if (cand.length >= 2) {
-      const startLat = 46.053108, startLon = 9.420741;
-      const dFirst = Math.hypot(cand[0].lat - startLat, cand[0].lon - startLon);
-      const dLast = Math.hypot(cand[cand.length - 1].lat - startLat, cand[cand.length - 1].lon - startLon);
-      if (dLast < dFirst) cand.reverse();
-    }
+    cand = correctTrackDirection(cand, s.checkpoints || raceManager.checkpoints);
     if (!isValidTrackForVersion(cand)) {
       console.warn('[Edit] snapshot corrotto, ignoro rawTrackPoints');
     } else {
