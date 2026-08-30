@@ -388,13 +388,28 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
 function rebuildTrack3D() {
   if (rawTrackPoints.length < 2) return;
 
-  const worldPoints = rawTrackPoints.map(p => {
-    const v = terrainManager.coordToWorld(p.lat, p.lon, p.ele);
-    // YOU-22: terrain adherence — ponytail: max(track ele, DEM+offset) prevents sinking; one line, no raycast
-    const ground = terrainManager.getElevationAtWorld(v.x, v.z);
-    v.y = Math.max(v.y, ground + 1.8); // calibration knob: 1.8 world units (~14m real), bump to 2.5 if steep faces still clip
-    return v;
-  });
+  // PROG-SMOOTH: Chaikin corner-cutting subdivision for smoother paths
+  function chaikinSmooth(points, iterations = 2) {
+    if (iterations <= 0 || points.length < 2) return points.map(v => v.clone());
+    let result = points.map(v => v.clone());
+    for (let iter = 0; iter < iterations; iter++) {
+      const next = [];
+      for (let i = 0; i < result.length - 1; i++) {
+        const p0 = result[i];
+        const p1 = result[i + 1];
+        next.push(
+          new THREE.Vector3(0.75 * p0.x + 0.25 * p1.x, 0.75 * p0.y + 0.25 * p1.y, 0.75 * p0.z + 0.25 * p1.z),
+          new THREE.Vector3(0.25 * p0.x + 0.75 * p1.x, 0.25 * p0.y + 0.75 * p1.y, 0.25 * p0.z + 0.75 * p1.z)
+        );
+      }
+      result = next;
+    }
+    return result;
+  }
+
+  const rawWorldPoints = worldPoints;
+  const useSmooth = settingsManager.settings.pathSmoothing !== false;
+  const worldPoints = useSmooth ? chaikinSmooth(rawWorldPoints, 2) : rawWorldPoints;
   cachedWorldPoints = worldPoints.map(v => v.clone());
 
   // PROG-01: single full-track tube + rainbow vertex colors (Closes #146)
@@ -417,10 +432,17 @@ function rebuildTrack3D() {
   for (let i = 0; i < count; i++) {
     const ratio = i / count;
     let r, g, b;
+    const trackStyle = settingsManager.settings.trackStyle || 'rainbow';
+    const trackSpeed = 0.0001; // slow rainbow ~63s full cycle
     if (ratio <= leaderRatio0) {
-      const hue = ((ratio * 4 + tHead) % 1.0);
-      const col = new THREE.Color().setHSL(hue, 1.0, 0.55);
-      r = col.r; g = col.g; b = col.b;
+      if (trackStyle === 'solid') {
+        const tc = new THREE.Color(settingsManager.settings.trackTravelColor);
+        r = tc.r; g = tc.g; b = tc.b;
+      } else {
+        const hue = ((ratio * 4 + tHead * trackSpeed) % 1.0);
+        const col = new THREE.Color().setHSL(hue, 1.0, 0.55);
+        r = col.r; g = col.g; b = col.b;
+      }
     } else {
       const rc = new THREE.Color(settingsManager.settings.trackRemainingColor);
       r = rc.r; g = rc.g; b = rc.b;
@@ -448,6 +470,7 @@ function rebuildTrack3D() {
   const archRatio = Math.min(0.999, Math.max(0.001, 14.5 / raceManager.totalKm));
   placeArchAtRoute(archGroup, routeCurve, archRatio, terrainManager);
   archGroup.rotation.y += Math.PI / 4; // 45° perpendicolare al tracciato
+  archGroup.rotation.y += Math.PI / 2; // +90° CCW da vista zenith
   archGroup.rotation.x = THREE.MathUtils.degToRad(-10); // -10° vista frontale, gambe nella montagna
   archGroup.position.y -= 1.0; // abbassa base, gambe dentro il terreno
   scene.add(archGroup);
@@ -474,21 +497,28 @@ function refreshBicolorTrack() {
   const tubeGeo = new THREE.TubeGeometry(curve, 1000, 1.1, 8, false);
 
   // vertex colors: rainbow neon for traveled, dim for remaining
-  const posAttr = tubeGeo.attributes.position;
-  const count = posAttr.count;
-  const colors = new Float32Array(count * 3);
-  const tHead = performance.now() * 0.0003; // slow time shift for "moving" rainbow
+   const posAttr = tubeGeo.attributes.position;
+   const count = posAttr.count;
+   const colors = new Float32Array(count * 3);
+   const trackStyle = settingsManager.settings.trackStyle || 'rainbow';
+   const trackSpeed = 0.0001; // slow rainbow ~63s full cycle
+   const tHead = performance.now() * trackSpeed; // slow time shift for "moving" rainbow
 
-  for (let i = 0; i < count; i++) {
-    const z = posAttr.getZ(i);
-    // approximate ratio from z position along tube (0=start, 1=end)
-    const ratio = i / count;
-    let r, g, b;
-    if (ratio <= leaderRatio) {
-      // traveled: bright neon rainbow cycling hue
-      const hue = ((ratio * 4 + tHead) % 1.0);
-      const col = new THREE.Color().setHSL(hue, 1.0, 0.55);
-      r = col.r; g = col.g; b = col.b;
+   for (let i = 0; i < count; i++) {
+     const z = posAttr.getZ(i);
+     // approximate ratio from z position along tube (0=start, 1=end)
+     const ratio = i / count;
+     let r, g, b;
+     if (ratio <= leaderRatio) {
+       if (trackStyle === 'solid') {
+         const tc = new THREE.Color(settingsManager.settings.trackTravelColor);
+         r = tc.r; g = tc.g; b = tc.b;
+       } else {
+         // traveled: bright neon rainbow cycling hue (slow)
+         const hue = ((ratio * 4 + tHead) % 1.0);
+         const col = new THREE.Color().setHSL(hue, 1.0, 0.55);
+         r = col.r; g = col.g; b = col.b;
+       }
      } else {
        // remaining: custom color
        const rc = new THREE.Color(settingsManager.settings.trackRemainingColor);
@@ -599,8 +629,18 @@ let camTween = null; // { startPos, endPos, startTarget, endTarget, elapsed, dur
 let ndiTween = null; // TRANS-01: NDI-only tween — ponytail: separate from camTween
 const ndiTarget = new THREE.Vector3(0, 70, 0);
 let ndiQueue = []; // TRANS-02: queue — ponytail: array of {sceneName, params}
-function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
-function getSceneParams(name) {
+ function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+
+ // TRANS-LOCK: blocca bottoni scene durante transizione NDI
+ function setSceneButtonsDisabled(disabled) {
+   document.querySelectorAll('[data-scene]').forEach(b => {
+     b.disabled = disabled;
+     b.style.opacity = disabled ? '0.4' : '1';
+     b.style.pointerEvents = disabled ? 'none' : 'auto';
+   });
+ }
+
+ function getSceneParams(name) {
   const selectedAthlete = raceManager.getSelectedAthlete();
   const ratio = selectedAthlete ? (selectedAthlete.km / raceManager.totalKm) : 0.45;
   if (name === 'overview') return { pos: new THREE.Vector3(0, 480, 760), target: new THREE.Vector3(0, 70, 0), label: 'PANORAMICA 3D VALLE PREMANA' };
@@ -645,10 +685,11 @@ function setScene(sceneName, opts = {}) {
     ndiQueue.push({ sceneName, params });
     return;
   }
-  // TRANS-01: tween both NDI programCamera AND browser camera (Closes #145)
-  ndiTween = { startPos: programCamera.position.clone(), endPos: params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
-  camTween = { startPos: camera.position.clone(), endPos: params.pos.clone(), startTarget: controls.target.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
-}
+   // TRANS-01: tween both NDI programCamera AND browser camera (Closes #145)
+   ndiTween = { startPos: programCamera.position.clone(), endPos: params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
+   camTween = { startPos: camera.position.clone(), endPos: params.pos.clone(), startTarget: controls.target.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
+   setSceneButtonsDisabled(true);
+ }
 
 document.querySelectorAll('[data-scene]').forEach(b => {
   b.addEventListener('click', () => setScene(b.dataset.scene));
@@ -1076,14 +1117,19 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = clock.getDelta();
 
-  if (routeCurve) {
-    // advance global elapsed — RACE-02 simSpeed (1=real, 10-100 accelerated)
-    if (isAutoPlaying) {
-      const speed = settingsManager.settings.simulationSpeed ?? 1;
-      simElapsedSec = (simElapsedSec + dt * speed) % getDurationSec();
-    }
-    const state = raceManager.getState();
-    const athletes = state.athletes;
+    if (routeCurve) {
+      if (isAutoPlaying) {
+        const speed = settingsManager.settings.simulationSpeed ?? 1;
+        simElapsedSec = (simElapsedSec + dt * speed) % getDurationSec();
+      }
+      // FOG: remove fog in zenith scene (scene 4) for clear top-down view
+      if (activeScene === 'topdown') {
+        if (scene.fog) scene.fog.density = 0;
+      } else {
+        if (scene.fog) scene.fog.density = 0.00068;
+      }
+      const state = raceManager.getState();
+      const athletes = state.athletes;
 
     athletes.forEach(ath => {
       if (isAutoPlaying && ath.status === 'running') {
@@ -1222,37 +1268,41 @@ function frame() {
     programCamera.position.lerpVectors(ndiTween.startPos, ndiTween.endPos, e);
     ndiTarget.lerpVectors(ndiTween.startTarget, ndiTween.endTarget, e);
     programCamera.lookAt(ndiTarget);
-    if (t >= 1) {
-      ndiTween = null;
-      // TRANS-02/03: dequeue next if queued — TRANS-03 variable duration per pair
-      if (ndiQueue.length) {
-        const next = ndiQueue.shift();
-        const from = activeScene;
-        activeScene = next.sceneName;
-        try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
-        document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
-        const modeEl = document.querySelector('#mode');
-        if (modeEl) modeEl.textContent = next.params.label;
-        const dur = getTransitionDuration(from, next.sceneName);
-        ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: dur };
-      }
-    }
-  } else {
-    programCamera.copy(camera);
-    ndiTarget.copy(controls.target);
-    // if queue has pending but no tween (edge case)
-    if (ndiQueue.length) {
-      const next = ndiQueue.shift();
-      const from = activeScene;
-      activeScene = next.sceneName;
-      try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
-      document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
-      const modeEl = document.querySelector('#mode');
-      if (modeEl) modeEl.textContent = next.params.label;
-      const dur = getTransitionDuration(from, next.sceneName);
-      ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: dur };
-    }
-  }
+     if (t >= 1) {
+       ndiTween = null;
+       // TRANS-02/03: dequeue next if queued — TRANS-03 variable duration per pair
+       if (ndiQueue.length) {
+         const next = ndiQueue.shift();
+         const from = activeScene;
+         activeScene = next.sceneName;
+         try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
+         document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
+         const modeEl = document.querySelector('#mode');
+         if (modeEl) modeEl.textContent = next.params.label;
+         const dur = getTransitionDuration(from, next.sceneName);
+         ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: dur };
+         // keep buttons disabled while next tween is active
+       } else {
+         setSceneButtonsDisabled(false);
+       }
+     }
+   } else {
+     programCamera.copy(camera);
+     ndiTarget.copy(controls.target);
+     // if queue has pending but no tween (edge case)
+     if (ndiQueue.length) {
+       const next = ndiQueue.shift();
+       const from = activeScene;
+       activeScene = next.sceneName;
+       try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
+       document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
+       const modeEl = document.querySelector('#mode');
+       if (modeEl) modeEl.textContent = next.params.label;
+       const dur = getTransitionDuration(from, next.sceneName);
+       ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: dur };
+       setSceneButtonsDisabled(true);
+     }
+   }
   // TRANS-04: indicator visivo browser sopra profilo
   const transEl = document.querySelector('#transition-indicator');
   if (transEl) transEl.style.display = ndiTween ? 'block' : 'none';

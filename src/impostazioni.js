@@ -439,7 +439,29 @@ function initSettingsUI() {
       syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
     });
   }
-  // GPX file upload
+  // Track style: rainbow vs solid
+  const trackStyleRadios = document.querySelectorAll('input[name="trackStyle"]');
+  if (trackStyleRadios.length) {
+    trackStyleRadios.forEach(radio => {
+      if (radio.value === (s.trackStyle || 'rainbow')) radio.checked = true;
+    });
+    trackStyleRadios.forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        settingsManager.update({ trackStyle: e.target.value });
+        syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+      });
+    });
+   }
+   // PROG-SMOOTH: Path smoothing toggle
+   const chkPathSmoothing = document.querySelector('#chk-path-smoothing');
+   if (chkPathSmoothing) {
+     chkPathSmoothing.checked = s.pathSmoothing !== false;
+     chkPathSmoothing.addEventListener('change', (e) => {
+       settingsManager.update({ pathSmoothing: e.target.checked });
+       syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+     });
+   }
+   // GPX file upload
   const gpxInput = document.querySelector('#gpx-input');
   const gpxSource = document.querySelector('#gpx-source');
   if (gpxSource) {

@@ -22,8 +22,10 @@ export class SettingsManager {
       preserveBuffer: false,
       showProgressMarker: true, // PROG-07: visible progress cursor on track
       trackTravelColor: '#ffffff', // PROG-07: traveled track color
-      trackRemainingColor: '#2a2e34', // PROG-07: remaining track color
-      gpxSource: '/data/giir-di-mont-32-km.gpx'
+       trackRemainingColor: '#2a2e34', // PROG-07: remaining track color
+       trackStyle: 'rainbow', // 'rainbow' | 'solid'
+       pathSmoothing: true, // Chaikin corner-cutting smoothing for track path
+       gpxSource: '/data/giir-di-mont-32-km.gpx'
     };
 
     this.settings = { ...this.defaultSettings };
