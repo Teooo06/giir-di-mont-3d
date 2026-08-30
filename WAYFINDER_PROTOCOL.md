@@ -453,7 +453,7 @@ Trivial 1-2-line CSS/HTML (`UI-01/02/03`) need no automated test — screenshot 
 ## 11. What changes, what is kept
 
 - **Kept:** `SPECIFICHE_PROGRAMMA.md:99` 6-bullet roadmap direction; `STATO_PROGETTO_E_LOG.md:68` log; DEM SRTM 256 + bench decisions (`Wayfinder #4/#5`); ponytail shortest-diff convention.
-- **Superseded by this protocol:** any `Dipendenze` text-only boundary — replaced by native `Blocked by` (§6.2); `30fps` target in `YOU-02 #24` — replaced by `25/50` in `PERF-08 #65`; bare-ID references in `#57` body.
+- **Superseded by this protocol:** any `Dipendenze` text-only boundary — replaced by native `Blocked by` (§6.2); `30fps` target in `YOU-02 #24` — replaced by `25/50` in `PERF-08 #65`; bare-ID references in `#57` body; arco rotation #147 (sostituito da #159); tracciato spezzato #146 (sostituito da #161); qualità NDI #149 (sostituito da #162).
 - **Add when needed:** full `pre-commit` hooks, `Lighthouse` perf suite, `OffscreenCanvas` worker — only if `PERF-01` proves required.
 
 ---
@@ -463,6 +463,23 @@ Trivial 1-2-line CSS/HTML (`UI-01/02/03`) need no automated test — screenshot 
 1. Maintainer executes §6.1-6.6 triage in one sitting on `master` (estimate 20 commits + 15 edge adds + 10 closes).
 2. Then each contributor claims **one** frontier ticket (suggest `Teooo06 → PERF-01 #58`, `Luca → RACE-01 #73` or `UI-01 #66`) and works through §7.
 3. After each close, graduate fog: `PERF-01` → reveal `PERF-02` shape; `CAM-01` → reveal `CAM-02..06`; etc.
+
+> **Rule while this map is live:** One ticket at a time. Finish → verify → commit → PR → merge → next. No parallel tickets touching the same file. See `wayfinder/SKILL.md:105` `never resolve more than one ticket per session`.
+
+---
+
+## 13. User-requested changes (fix/user-changes — 2026-08-30)
+
+Modifiche richieste direttamente dall'operatore, implementate su branch `fix/user-changes`.
+
+| Modifica | File | Issue |
+|----------|------|-------|
+| Arco Bocchetta Larec rotation | `main.js:409`, `arch.js` | #159 |
+| Sfere checkpoint dimezzate | `main.js:310,319` | #160 |
+| Tracciato GPX fluido | `main.js:405-407,429,472-474` | #161 |
+| Qualità NDI soft shadow + exposure | `src/ndi-streamer.js:68-70` | #162 |
+| Toggle camera auto/manual (tasto F) | `main.js:530-531,1095-1145` | #163 |
+| Marker progresso + custom GPX | `main.js:210-238,1093`, `impostazioni.html`, `impostazioni.js` | #164, #165 |
 
 > **Rule while this map is live:** One ticket at a time. Finish → verify → commit → PR → merge → next. No parallel tickets touching the same file. See `wayfinder/SKILL.md:105` `never resolve more than one ticket per session`.
 

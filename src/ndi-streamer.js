@@ -56,18 +56,20 @@ export class NdiStreamer {
 
     this.ndiRenderer = new THREE.WebGLRenderer({
       canvas: this.ndiCanvas,
-      antialias: true, // PERF-06: tested MSAA 2x — Three r180 only exposes antialias bool (4x vs 0x), samples:2 not exposed; bench antialias:true 4x costs ~0.8ms vs false 0x, keep true for broadcast quality (ponytail: set false if still tight)
+      antialias: true,
       powerPreference: 'high-performance',
-      preserveDrawingBuffer: true, // required for readPixels — keep only here, browser renderer now false
-      alpha: true
+      preserveDrawingBuffer: true,
+      alpha: false
     });
     this.ndiRenderer.setSize(this.width, this.height, false);
     this.ndiRenderer.setPixelRatio(1);
     this.ndiRenderer.outputColorSpace = THREE.SRGBColorSpace;
     this.ndiRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.ndiRenderer.toneMappingExposure = 1.0; // balanced exposure for NDI broadcast (Closes #149)
+    this.ndiRenderer.toneMappingExposure = 1.12;
     this.ndiRenderer.shadowMap.enabled = true;
-    this.ndiRenderer.shadowMap.type = THREE.PCFShadowMap; // ponytail: PCFSoft→PCF on NDI, ~1.5ms win per 1080p frame, softness diff invisible at broadcast distance
+    this.ndiRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.ndiRenderer.shadowMap.bias = -0.0002;
+    this.ndiRenderer.shadowMap.normalBias = 0.02;
 
     this.initWebSocket();
   }
@@ -181,12 +183,13 @@ export class NdiStreamer {
 
     this.lastFrameTime = now;
 
-    // Renderizza con il renderer NDI dedicato (1920x1080, viewport piena, no interferenze)
-    targetRenderer.render(actualScene, actualCamera);
+     // Renderizza con il renderer NDI dedicato (1920x1080, viewport piena, no interferenze)
+     targetRenderer.render(actualScene, actualCamera);
 
-    // Leggi i pixel dal framebuffer NDI
-    const gl = targetRenderer.getContext();
-    gl.readPixels(0, 0, this.width, this.height, gl.RGBA, gl.UNSIGNED_BYTE, this.pixelBuffer);
+     // Leggi i pixel dal framebuffer NDI — finish() garantisce che tutto il rendering sia completato
+     const gl = targetRenderer.getContext();
+     gl.finish();
+     gl.readPixels(0, 0, this.width, this.height, gl.RGBA, gl.UNSIGNED_BYTE, this.pixelBuffer);
 
     // Inversione verticale
     const w = this.width;

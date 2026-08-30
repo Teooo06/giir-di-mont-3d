@@ -296,7 +296,71 @@
               <p>Il profilo <strong>Bilanciato</strong> è ottimizzato per MacBook Air M2. Se vedi <strong>45+ FPS</strong> stabili nell'HUD NDI, puoi provare "Alto". Se scendi sotto <strong>35 FPS</strong>, passa a "Performance".</p>
             </div>
           </div>
+         </section>
+
+        <!-- PROG-07: Percorso & Marker -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <span class="badge">PERCORSO & MARKER</span>
+              <h2>Tracciato GPX e Indicatore di Progresso</h2>
+              <p class="subtitle">Personalizza l'aspetto del percorso e il marker di posizione dell'atleta.</p>
+            </div>
+          </div>
+          <div class="settings-form">
+            <div class="form-group checkbox-group">
+              <label>
+                <input type="checkbox" id="chk-progress-marker" checked />
+                Mostra marker di progresso sul tracciato
+              </label>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Colore tratto percorse</label>
+                <input type="color" id="track-travel-color" value="#ffffff" />
+              </div>
+              <div class="form-group">
+                <label>Colore tratto non percorse</label>
+                <input type="color" id="track-remaining-color" value="#2a2e34" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Stile tracciato percorso</label>
+              <div class="radio-cards" id="track-style-group">
+                <label class="radio-card">
+                  <input type="radio" name="trackStyle" value="rainbow" checked />
+                  <div class="card-content">
+                    <strong>🌈 Arcobaleno lento</strong>
+                    <small>Ciclo ~63s, effetto neon mobile</small>
+                  </div>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="trackStyle" value="solid" />
+                  <div class="card-content">
+                    <strong>🎨 Colore fisso</strong>
+                    <small>Colore scelto sopra, senza variazione</small>
+                  </div>
+                </label>
+            </div>
+            <div class="form-group checkbox-group">
+              <label>
+                <input type="checkbox" id="chk-path-smoothing" checked />
+                Curve lente sul tracciato (Chaikin)
+              </label>
+            </div>
+            <div class="form-group">
+              <label>Sorgente GPX</label>
+              <input type="text" id="gpx-source" value="/data/giir-di-mont-32-km.gpx" class="form-control" />
+              <small class="help-text">Percorso del file GPX. Supportati file .gpx locali tramite caricamento.</small>
+            </div>
+            <div class="banner-box">
+              <strong>📄 GPX</strong>
+              <p>Carica un file GPX personalizzato per modificare il tracciato. Il percorso si aggiorna in tempo reale.</p>
+            </div>
+          </div>
         </section>
+
+        <input type="file" id="gpx-input" accept=".gpx,application/xml" hidden />
 
         <!-- UI-06: Legenda Scorciatoie -->
         <section class="card">

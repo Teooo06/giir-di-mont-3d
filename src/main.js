@@ -131,16 +131,22 @@ const ndiStreamer = new NdiStreamer({
 });
 
 // Canale di sincronizzazione istantanea con /impostazioni
-try {
-  const syncChannel = new BroadcastChannel('giir_sync_channel');
-  syncChannel.onmessage = (e) => {
-    if (e.data?.type === 'SETTINGS_UPDATED') {
-      settingsManager.loadSettings();
-    } else if (e.data?.type === 'RACE_STATE_UPDATED') {
-      raceManager.loadFromStorage(false);
-    }
-  };
-} catch (e) {}
+ try {
+   const syncChannel = new BroadcastChannel('giir_sync_channel');
+   syncChannel.onmessage = (e) => {
+     if (e.data?.type === 'SETTINGS_UPDATED') {
+       settingsManager.loadSettings();
+     } else if (e.data?.type === 'RACE_STATE_UPDATED') {
+       raceManager.loadFromStorage(false);
+     } else if (e.data?.type === 'GPX_UPDATED') {
+       const pts = e.data.points;
+       if (pts && pts.length >= 2) {
+         const gpxText = `<?xml version="1.0" encoding="UTF-8"?><gpx><trk><name>Custom GPX</name><trkseg>${pts.map(p => `<trkpt lat="${p.lat}" lon="${p.lon}"><ele>${p.ele}</ele></trkpt>`).join('')}</trkseg></trk></gpx>`;
+         parseGpxAndBuild(gpxText, 'Custom GPX');
+       }
+     }
+   };
+ } catch (e) {}
 
 // ----------------------------------------------------
 // 3. GENERAZIONE ALBERELLI 3D STILIZZATI (MICRO FORESTE ALPINE)
@@ -208,6 +214,41 @@ scene.add(checkpointGroup);
 let archGroup = null; // P8 arco gonfiabile rosso Bocchetta Larec 14.5km — must stay
 
 const athleteMeshes = new Map();
+let progressMarker = null;
+let progressMarkerGlow = null;
+
+function createProgressMarker() {
+  if (progressMarker) { scene.remove(progressMarker); progressMarker.geometry.dispose(); progressMarker.material.dispose(); }
+  if (progressMarkerGlow) { scene.remove(progressMarkerGlow); progressMarkerGlow.geometry.dispose(); progressMarkerGlow.material.dispose(); }
+  const markerGeo = new THREE.SphereGeometry(1.5, 16, 12);
+  const markerMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+  progressMarker = new THREE.Mesh(markerGeo, markerMat);
+  progressMarker.visible = settingsManager.settings.showProgressMarker;
+  scene.add(progressMarker);
+  const glowGeo = new THREE.SphereGeometry(3.0, 16, 12);
+  const glowMat = new THREE.MeshBasicMaterial({ color: settingsManager.settings.themeColor, transparent: true, opacity: 0.3 });
+  progressMarkerGlow = new THREE.Mesh(glowGeo, glowMat);
+  progressMarkerGlow.visible = settingsManager.settings.showProgressMarker;
+  scene.add(progressMarkerGlow);
+}
+
+function updateProgressMarker() {
+  if (!routeCurve || !settingsManager.settings.showProgressMarker) {
+    if (progressMarker) progressMarker.visible = false;
+    if (progressMarkerGlow) progressMarkerGlow.visible = false;
+    return;
+  }
+  const selectedAthlete = raceManager.getSelectedAthlete();
+  if (!selectedAthlete) return;
+  const ratio = Math.min(0.999, Math.max(0.001, selectedAthlete.km / raceManager.totalKm));
+  const pt = routeCurve.getPointAt(ratio);
+  progressMarker.position.copy(pt).add(new THREE.Vector3(0, 3, 0));
+  progressMarkerGlow.position.copy(pt).add(new THREE.Vector3(0, 3, 0));
+  progressMarker.visible = true;
+  progressMarkerGlow.visible = true;
+  progressMarker.material.color.set(settingsManager.settings.themeColor);
+  progressMarkerGlow.material.color.set(settingsManager.settings.themeColor);
+}
 
 function markerTexture(number, color = '#dff654') {
   const c = document.createElement('canvas');
@@ -308,7 +349,7 @@ function clearCheckpoints() {
 
 function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = false) {
   const marker = new THREE.Mesh(
-    new THREE.SphereGeometry(4.8, 16, 12),
+    new THREE.SphereGeometry(2.4, 16, 12),
     new THREE.MeshBasicMaterial({ color: isStart || isFinish ? '#ffffff' : settingsManager.settings.themeColor })
   );
   marker.position.copy(worldPos);
@@ -317,7 +358,7 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
 
   // PROG-04: checkpoint marker piccolo r=1.0 lungo traccia — sempre visibile indipendente da leader — ponytail: MeshBasicMaterial low cost, no shadow
   const dot = new THREE.Mesh(
-    new THREE.SphereGeometry(1.0, 10, 8),
+    new THREE.SphereGeometry(0.5, 10, 8),
     new THREE.MeshBasicMaterial({ color: settingsManager.settings.themeColor })
   );
   dot.position.copy(worldPos);
@@ -347,13 +388,32 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
 function rebuildTrack3D() {
   if (rawTrackPoints.length < 2) return;
 
-  const worldPoints = rawTrackPoints.map(p => {
+  function chaikinSmooth(points, iterations = 2) {
+    if (iterations <= 0 || points.length < 2) return points.map(v => v.clone());
+    let result = points.map(v => v.clone());
+    for (let iter = 0; iter < iterations; iter++) {
+      const next = [];
+      for (let i = 0; i < result.length - 1; i++) {
+        const p0 = result[i];
+        const p1 = result[i + 1];
+        next.push(
+          new THREE.Vector3(0.75 * p0.x + 0.25 * p1.x, 0.75 * p0.y + 0.25 * p1.y, 0.75 * p0.z + 0.25 * p1.z),
+          new THREE.Vector3(0.25 * p0.x + 0.75 * p1.x, 0.25 * p0.y + 0.75 * p1.y, 0.25 * p0.z + 0.75 * p1.z)
+        );
+      }
+      result = next;
+    }
+    return result;
+  }
+
+  const rawWorldPoints = rawTrackPoints.map(p => {
     const v = terrainManager.coordToWorld(p.lat, p.lon, p.ele);
-    // YOU-22: terrain adherence — ponytail: max(track ele, DEM+offset) prevents sinking; one line, no raycast
     const ground = terrainManager.getElevationAtWorld(v.x, v.z);
-    v.y = Math.max(v.y, ground + 1.8); // calibration knob: 1.8 world units (~14m real), bump to 2.5 if steep faces still clip
+    v.y = Math.max(v.y, ground + 1.8);
     return v;
   });
+  const useSmooth = settingsManager.settings.pathSmoothing !== false;
+  const worldPoints = useSmooth ? chaikinSmooth(rawWorldPoints, 2) : rawWorldPoints;
   cachedWorldPoints = worldPoints.map(v => v.clone());
 
   // PROG-01: single full-track tube + rainbow vertex colors (Closes #146)
@@ -361,12 +421,14 @@ function rebuildTrack3D() {
   if (routeLineRemaining) { scene.remove(routeLineRemaining); routeLineRemaining.geometry.dispose(); if (routeLineRemaining.material) routeLineRemaining.material.dispose(); }
   if (routeLine) { scene.remove(routeLine); if (routeLine.geometry) routeLine.geometry.dispose(); routeLine = null; }
 
-  routeCurve = new THREE.CatmullRomCurve3(worldPoints, false, 'centripetal');
+  const roughCurve = new THREE.CatmullRomCurve3(worldPoints, false, 'centripetal');
+  const smoothPoints = roughCurve.getPoints(2000);
+  routeCurve = new THREE.CatmullRomCurve3(smoothPoints, false, 'centripetal');
 
   // Single full-track tube with rainbow vertex colors (no split)
   const leader0 = raceManager.getSelectedAthlete();
   const leaderRatio0 = leader0 ? Math.min(0.999, Math.max(0.001, leader0.km / raceManager.totalKm)) : 0;
-  const tubeGeo = new THREE.TubeGeometry(routeCurve, 500, 1.1, 7, false);
+  const tubeGeo = new THREE.TubeGeometry(routeCurve, 1000, 1.1, 8, false);
   const posAttr = tubeGeo.attributes.position;
   const count = posAttr.count;
   const colors = new Float32Array(count * 3);
@@ -374,12 +436,20 @@ function rebuildTrack3D() {
   for (let i = 0; i < count; i++) {
     const ratio = i / count;
     let r, g, b;
+    const trackStyle = settingsManager.settings.trackStyle || 'rainbow';
+    const trackSpeed = 0.0001; // slow rainbow ~63s full cycle
     if (ratio <= leaderRatio0) {
-      const hue = ((ratio * 4 + tHead) % 1.0);
-      const col = new THREE.Color().setHSL(hue, 1.0, 0.55);
-      r = col.r; g = col.g; b = col.b;
+      if (trackStyle === 'solid') {
+        const tc = new THREE.Color(settingsManager.settings.trackTravelColor);
+        r = tc.r; g = tc.g; b = tc.b;
+      } else {
+        const hue = ((ratio * 4 + tHead * trackSpeed) % 1.0);
+        const col = new THREE.Color().setHSL(hue, 1.0, 0.55);
+        r = col.r; g = col.g; b = col.b;
+      }
     } else {
-      r = 0.35; g = 0.38; b = 0.42;
+      const rc = new THREE.Color(settingsManager.settings.trackRemainingColor);
+      r = rc.r; g = rc.g; b = rc.b;
     }
     colors[i * 3] = r; colors[i * 3 + 1] = g; colors[i * 3 + 2] = b;
   }
@@ -400,12 +470,15 @@ function rebuildTrack3D() {
     scene.remove(archGroup);
     archGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
   }
-  archGroup = createArch({ height: 7, width: 8, tubeRadius: 1.6, color: '#ff1a1a' });
+  archGroup = createArch({ height: 7, width: 8, tubeRadius: 1.6, color: '#be0000' });
   const archRatio = Math.min(0.999, Math.max(0.001, 14.5 / raceManager.totalKm));
   placeArchAtRoute(archGroup, routeCurve, archRatio, terrainManager);
-  archGroup.rotation.y += Math.PI / 2; // 90° perpendicolare al tracciato
-  archGroup.rotation.z += THREE.MathUtils.degToRad(20); // 20° antiorario vista frontale
-  archGroup.position.y += 1.0; // rialza base
+  archGroup.rotation.y += THREE.MathUtils.degToRad(120); // Alto
+  archGroup.rotation.z += THREE.MathUtils.degToRad(-25); // Frontale 
+  archGroup.rotation.x = THREE.MathUtils.degToRad(0);  // Laterale
+  archGroup.position.y -= 5.0; 
+  archGroup.position.x -= 6.0; 
+  archGroup.position.z += 4.0; //avanti
   scene.add(archGroup);
 
   if (elevationProfile && typeof elevationProfile.setTrackData === 'function') {
@@ -424,30 +497,39 @@ function refreshBicolorTrack() {
   if (routeLineRemaining) { scene.remove(routeLineRemaining); routeLineRemaining.geometry.dispose(); routeLineRemaining.material.dispose(); }
 
   const worldPoints = cachedWorldPoints;
-  const curve = new THREE.CatmullRomCurve3(worldPoints, false, 'centripetal');
-  const totalSegs = 500;
-  const tubeGeo = new THREE.TubeGeometry(curve, totalSegs, 1.1, 7, false);
+  const roughCurve = new THREE.CatmullRomCurve3(worldPoints, false, 'centripetal');
+  const smoothPoints = roughCurve.getPoints(2000);
+  const curve = new THREE.CatmullRomCurve3(smoothPoints, false, 'centripetal');
+  const tubeGeo = new THREE.TubeGeometry(curve, 1000, 1.1, 8, false);
 
   // vertex colors: rainbow neon for traveled, dim for remaining
-  const posAttr = tubeGeo.attributes.position;
-  const count = posAttr.count;
-  const colors = new Float32Array(count * 3);
-  const tHead = performance.now() * 0.0003; // slow time shift for "moving" rainbow
+   const posAttr = tubeGeo.attributes.position;
+   const count = posAttr.count;
+   const colors = new Float32Array(count * 3);
+   const trackStyle = settingsManager.settings.trackStyle || 'rainbow';
+   const trackSpeed = 0.0001; // slow rainbow ~63s full cycle
+   const tHead = performance.now() * trackSpeed; // slow time shift for "moving" rainbow
 
-  for (let i = 0; i < count; i++) {
-    const z = posAttr.getZ(i);
-    // approximate ratio from z position along tube (0=start, 1=end)
-    const ratio = i / count;
-    let r, g, b;
-    if (ratio <= leaderRatio) {
-      // traveled: bright neon rainbow cycling hue
-      const hue = ((ratio * 4 + tHead) % 1.0);
-      const col = new THREE.Color().setHSL(hue, 1.0, 0.55);
-      r = col.r; g = col.g; b = col.b;
-    } else {
-      // remaining: dim gray-blue
-      r = 0.35; g = 0.38; b = 0.42;
-    }
+   for (let i = 0; i < count; i++) {
+     const z = posAttr.getZ(i);
+     // approximate ratio from z position along tube (0=start, 1=end)
+     const ratio = i / count;
+     let r, g, b;
+     if (ratio <= leaderRatio) {
+       if (trackStyle === 'solid') {
+         const tc = new THREE.Color(settingsManager.settings.trackTravelColor);
+         r = tc.r; g = tc.g; b = tc.b;
+       } else {
+         // traveled: bright neon rainbow cycling hue (slow)
+         const hue = ((ratio * 4 + tHead) % 1.0);
+         const col = new THREE.Color().setHSL(hue, 1.0, 0.55);
+         r = col.r; g = col.g; b = col.b;
+       }
+     } else {
+       // remaining: custom color
+       const rc = new THREE.Color(settingsManager.settings.trackRemainingColor);
+       r = rc.r; g = rc.g; b = rc.b;
+     }
     colors[i * 3] = r;
     colors[i * 3 + 1] = g;
     colors[i * 3 + 2] = b;
@@ -479,6 +561,7 @@ function parseGpxAndBuild(xmlText, filename = 'giir-di-mont-32-km.gpx') {
   if (rawTrackPoints.length < 2) throw new Error('Nessun punto traccia valido trovato.');
 
   rebuildTrack3D();
+  createProgressMarker();
   generateAlpineForest();
 
   const trackStatus = document.querySelector('#track-status');
@@ -524,6 +607,8 @@ let activeScene = settingsManager.settings.activeScene || 'overview';
 let topdownZoomed = false; // M key toggle (Closes #148)
 let isAutoPlaying = true;
 const targetPos = new THREE.Vector3();
+let manualFollow = false;
+let manualFollowOffset = new THREE.Vector3(); // offset camera→atleta in modalità manuale
 
 // CAM-05: presets Close/Wide/Helicopter — ponytail: 3 presets + default, persisted
 const camPresets = {
@@ -550,8 +635,18 @@ let camTween = null; // { startPos, endPos, startTarget, endTarget, elapsed, dur
 let ndiTween = null; // TRANS-01: NDI-only tween — ponytail: separate from camTween
 const ndiTarget = new THREE.Vector3(0, 70, 0);
 let ndiQueue = []; // TRANS-02: queue — ponytail: array of {sceneName, params}
-function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
-function getSceneParams(name) {
+ function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+
+ // TRANS-LOCK: blocca bottoni scene durante transizione NDI
+ function setSceneButtonsDisabled(disabled) {
+   document.querySelectorAll('[data-scene]').forEach(b => {
+     b.disabled = disabled;
+     b.style.opacity = disabled ? '0.4' : '1';
+     b.style.pointerEvents = disabled ? 'none' : 'auto';
+   });
+ }
+
+ function getSceneParams(name) {
   const selectedAthlete = raceManager.getSelectedAthlete();
   const ratio = selectedAthlete ? (selectedAthlete.km / raceManager.totalKm) : 0.45;
   if (name === 'overview') return { pos: new THREE.Vector3(0, 480, 760), target: new THREE.Vector3(0, 70, 0), label: 'PANORAMICA 3D VALLE PREMANA' };
@@ -596,10 +691,11 @@ function setScene(sceneName, opts = {}) {
     ndiQueue.push({ sceneName, params });
     return;
   }
-  // TRANS-01: tween both NDI programCamera AND browser camera (Closes #145)
-  ndiTween = { startPos: programCamera.position.clone(), endPos: params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
-  camTween = { startPos: camera.position.clone(), endPos: params.pos.clone(), startTarget: controls.target.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
-}
+   // TRANS-01: tween both NDI programCamera AND browser camera (Closes #145)
+   ndiTween = { startPos: programCamera.position.clone(), endPos: params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
+   camTween = { startPos: camera.position.clone(), endPos: params.pos.clone(), startTarget: controls.target.clone(), endTarget: params.target.clone(), elapsed: 0, duration };
+   setSceneButtonsDisabled(true);
+ }
 
 document.querySelectorAll('[data-scene]').forEach(b => {
   b.addEventListener('click', () => setScene(b.dataset.scene));
@@ -628,6 +724,15 @@ addEventListener('keydown', (e) => {
   }
   if (e.key.toLowerCase() === 'c') {
     document.body.classList.toggle('clean');
+  }
+  if (e.key.toLowerCase() === 'f' && activeScene === 'runner' && routeCurve) {
+    manualFollow = !manualFollow;
+    const selectedAthlete = raceManager.getSelectedAthlete();
+    if (manualFollow && selectedAthlete) {
+      const ratio = Math.min(0.999, Math.max(0.001, selectedAthlete.km / raceManager.totalKm));
+      const pt = routeCurve.getPointAt(ratio);
+      manualFollowOffset.copy(camera.position).sub(pt);
+    }
   }
 });
 
@@ -1018,14 +1123,19 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = clock.getDelta();
 
-  if (routeCurve) {
-    // advance global elapsed — RACE-02 simSpeed (1=real, 10-100 accelerated)
-    if (isAutoPlaying) {
-      const speed = settingsManager.settings.simulationSpeed ?? 1;
-      simElapsedSec = (simElapsedSec + dt * speed) % getDurationSec();
-    }
-    const state = raceManager.getState();
-    const athletes = state.athletes;
+    if (routeCurve) {
+      if (isAutoPlaying) {
+        const speed = settingsManager.settings.simulationSpeed ?? 1;
+        simElapsedSec = (simElapsedSec + dt * speed) % getDurationSec();
+      }
+      // FOG: remove fog in zenith scene (scene 4) for clear top-down view
+      if (activeScene === 'topdown') {
+        if (scene.fog) scene.fog.density = 0;
+      } else {
+        if (scene.fog) scene.fog.density = 0.00068;
+      }
+      const state = raceManager.getState();
+      const athletes = state.athletes;
 
     athletes.forEach(ath => {
       if (isAutoPlaying && ath.status === 'running') {
@@ -1041,56 +1151,60 @@ function frame() {
     });
     // PROG-02: refresh bicolor every 5 frames — ponytail: throttled, deadband 0.2% avoids rebuild jitter
     if (++progFrameCounter % 5 === 0) refreshBicolorTrack();
+    updateProgressMarker();
 
     const selectedAthlete = raceManager.getSelectedAthlete();
-    if (selectedAthlete) {
-      updateRiderCard();
-      if (activeScene === 'runner' && !camTween) {
-        // CAM-01: camera follow con offset tangente — ponytail: tangent*-dist + up*height, frame-rate independent lerp
-        const ratio = Math.min(0.999, Math.max(0.001, selectedAthlete.km / raceManager.totalKm));
-        const pt = routeCurve.getPointAt(ratio);
-        const tangent = routeCurve.getTangentAt(ratio).normalize();
-        const baseDist = camPresets[currentCamPreset]?.dist ?? 95;
-        const baseHeight = camPresets[currentCamPreset]?.height ?? 55;
-        const camDistBack = baseDist; // calibration knob dist behind leader
-        // CAM-04: height adaptive to slope — ponytail: Δele between verts, downhill +height, uphill -height
-        const slopeProbeRatio = Math.min(0.999, ratio + 0.005);
-        const ptSlopeProbe = routeCurve.getPointAt(slopeProbeRatio);
-        const slopeDelta = ptSlopeProbe.y - pt.y;
-        const camHeight = baseHeight + 3 + THREE.MathUtils.clamp(-slopeDelta * 2.5, -12, 18); // +3 base, adaptive range (Closes #144)
-        const idealCamPos = pt.clone().add(tangent.clone().multiplyScalar(-camDistBack)).add(new THREE.Vector3(0, camHeight, 0));
-        // CAM-06: preset tween 1.8s easeInOutCubic if active, else continuous follow lerp
-        if (camPresetTween) {
-          camPresetTween.elapsed += dt;
-          let t = Math.min(1, camPresetTween.elapsed / camPresetTween.duration);
-          const e = easeInOutCubic(t);
-          camera.position.lerpVectors(camPresetTween.startPos, idealCamPos, e);
-          if (t >= 1) camPresetTween = null;
-        } else {
-          const camLerp = 1 - Math.exp(-2 * dt); // smoother follow (Closes #144)
-          camera.position.lerp(idealCamPos, camLerp);
+      if (selectedAthlete) {
+        updateRiderCard();
+        if (activeScene === 'runner' && !camTween) {
+          const ratio = Math.min(0.999, Math.max(0.001, selectedAthlete.km / raceManager.totalKm));
+          const pt = routeCurve.getPointAt(ratio);
+          if (manualFollow) {
+            camera.position.copy(pt).add(manualFollowOffset);
+            controls.target.copy(pt);
+          } else {
+            // CAM-01: camera follow con offset tangente — ponytail: tangent*-dist + up*height, frame-rate independent lerp
+            const tangent = routeCurve.getTangentAt(ratio).normalize();
+            const baseDist = camPresets[currentCamPreset]?.dist ?? 95;
+            const baseHeight = camPresets[currentCamPreset]?.height ?? 55;
+            const camDistBack = baseDist; // calibration knob dist behind leader
+            // CAM-04: height adaptive to slope — ponytail: Δele between verts, downhill +height, uphill -height
+            const slopeProbeRatio = Math.min(0.999, ratio + 0.005);
+            const ptSlopeProbe = routeCurve.getPointAt(slopeProbeRatio);
+            const slopeDelta = ptSlopeProbe.y - pt.y;
+            const camHeight = baseHeight + 3 + THREE.MathUtils.clamp(-slopeDelta * 2.5, -12, 18); // +3 base, adaptive range (Closes #144)
+            const idealCamPos = pt.clone().add(tangent.clone().multiplyScalar(-camDistBack)).add(new THREE.Vector3(0, camHeight, 0));
+            // CAM-06: preset tween 1.8s easeInOutCubic if active, else continuous follow lerp
+            if (camPresetTween) {
+              camPresetTween.elapsed += dt;
+              let t = Math.min(1, camPresetTween.elapsed / camPresetTween.duration);
+              const e = easeInOutCubic(t);
+              camera.position.lerpVectors(camPresetTween.startPos, idealCamPos, e);
+              if (t >= 1) camPresetTween = null;
+            } else {
+              const camLerp = 1 - Math.exp(-2 * dt); // smoother follow (Closes #144)
+              camera.position.lerp(idealCamPos, camLerp);
+            }
+            // CAM-02: raycast collision — keep 15m above terrain, lateral nudge if too low
+            const terrainY = terrainManager.getElevationAtWorld(camera.position.x, camera.position.z);
+            const minY = terrainY + 15;
+            if (camera.position.y < minY) {
+              camera.position.y = THREE.MathUtils.lerp(camera.position.y, minY, 0.15);
+              const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+              camera.position.add(perp.multiplyScalar(5 * dt));
+            }
+            // CAM-03: look-ahead 15-20m (spec) — ponytail: 18m via routeCurve tangent, calibration knob
+            const leadKm = 0.025;
+            const deadZone = 3.0;
+            const ratioAhead = Math.min(0.999, Math.max(0.001, (selectedAthlete.km + leadKm) / raceManager.totalKm));
+            const ptAhead = routeCurve.getPointAt(ratioAhead);
+            if (targetPos.distanceTo(ptAhead) > deadZone) {
+              targetPos.lerp(ptAhead, 0.02);
+            }
+            controls.target.copy(targetPos);
+          }
         }
-
-        // CAM-02: raycast collision — keep 15m above terrain, lateral nudge if too low
-        const terrainY = terrainManager.getElevationAtWorld(camera.position.x, camera.position.z);
-        const minY = terrainY + 15;
-        if (camera.position.y < minY) {
-          camera.position.y = THREE.MathUtils.lerp(camera.position.y, minY, 0.15);
-          const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-          camera.position.add(perp.multiplyScalar(5 * dt));
-        }
-
-        // CAM-03: look-ahead 15-20m (spec) — ponytail: 18m via routeCurve tangent, calibration knob
-        const leadKm = 0.025; // 25m ahead — smoother look-ahead (Closes #144)
-        const deadZone = 3.0; // world units ~30m — larger deadzone reduces jitter (Closes #144)
-        const ratioAhead = Math.min(0.999, Math.max(0.001, (selectedAthlete.km + leadKm) / raceManager.totalKm));
-        const ptAhead = routeCurve.getPointAt(ratioAhead);
-        if (targetPos.distanceTo(ptAhead) > deadZone) {
-          targetPos.lerp(ptAhead, 0.02); // slower target follow = less jitter
-        }
-        controls.target.copy(targetPos);
       }
-    }
   }
 
   // cinematic tween — 3d-games camera feel: smooth lerp + easeInOutCubic, no external lib
@@ -1160,37 +1274,41 @@ function frame() {
     programCamera.position.lerpVectors(ndiTween.startPos, ndiTween.endPos, e);
     ndiTarget.lerpVectors(ndiTween.startTarget, ndiTween.endTarget, e);
     programCamera.lookAt(ndiTarget);
-    if (t >= 1) {
-      ndiTween = null;
-      // TRANS-02/03: dequeue next if queued — TRANS-03 variable duration per pair
-      if (ndiQueue.length) {
-        const next = ndiQueue.shift();
-        const from = activeScene;
-        activeScene = next.sceneName;
-        try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
-        document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
-        const modeEl = document.querySelector('#mode');
-        if (modeEl) modeEl.textContent = next.params.label;
-        const dur = getTransitionDuration(from, next.sceneName);
-        ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: dur };
-      }
-    }
-  } else {
-    programCamera.copy(camera);
-    ndiTarget.copy(controls.target);
-    // if queue has pending but no tween (edge case)
-    if (ndiQueue.length) {
-      const next = ndiQueue.shift();
-      const from = activeScene;
-      activeScene = next.sceneName;
-      try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
-      document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
-      const modeEl = document.querySelector('#mode');
-      if (modeEl) modeEl.textContent = next.params.label;
-      const dur = getTransitionDuration(from, next.sceneName);
-      ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: dur };
-    }
-  }
+     if (t >= 1) {
+       ndiTween = null;
+       // TRANS-02/03: dequeue next if queued — TRANS-03 variable duration per pair
+       if (ndiQueue.length) {
+         const next = ndiQueue.shift();
+         const from = activeScene;
+         activeScene = next.sceneName;
+         try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
+         document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
+         const modeEl = document.querySelector('#mode');
+         if (modeEl) modeEl.textContent = next.params.label;
+         const dur = getTransitionDuration(from, next.sceneName);
+         ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: dur };
+         // keep buttons disabled while next tween is active
+       } else {
+         setSceneButtonsDisabled(false);
+       }
+     }
+   } else {
+     programCamera.copy(camera);
+     ndiTarget.copy(controls.target);
+     // if queue has pending but no tween (edge case)
+     if (ndiQueue.length) {
+       const next = ndiQueue.shift();
+       const from = activeScene;
+       activeScene = next.sceneName;
+       try { settingsManager.update({ activeScene: next.sceneName }); } catch {}
+       document.querySelectorAll('[data-scene]').forEach(b => b.classList.toggle('active', b.dataset.scene === next.sceneName));
+       const modeEl = document.querySelector('#mode');
+       if (modeEl) modeEl.textContent = next.params.label;
+       const dur = getTransitionDuration(from, next.sceneName);
+       ndiTween = { startPos: programCamera.position.clone(), endPos: next.params.pos.clone(), startTarget: ndiTarget.clone(), endTarget: next.params.target.clone(), elapsed: 0, duration: dur };
+       setSceneButtonsDisabled(true);
+     }
+   }
   // TRANS-04: indicator visivo browser sopra profilo
   const transEl = document.querySelector('#transition-indicator');
   if (transEl) transEl.style.display = ndiTween ? 'block' : 'none';
