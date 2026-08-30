@@ -6,6 +6,7 @@ import { RaceManager } from './race-manager.js';
 import { SettingsManager } from './settings-manager.js';
 import { ElevationProfile } from './elevation-profile.js';
 import { createArch, placeArchAtRoute } from './models/arch.js';
+import { VersionManager } from './version-manager.js';
 import './style.css';
 
 // ----------------------------------------------------
@@ -106,6 +107,7 @@ const raceManager = new RaceManager({
     updateRiderCard();
   }
 });
+const versionManager = new VersionManager();
 
 const ndiStreamer = new NdiStreamer({
   sourceName: settingsManager.settings.ndiSourceName,
@@ -570,17 +572,52 @@ function parseGpxAndBuild(xmlText, filename = 'giir-di-mont-32-km.gpx') {
   setScene('overview', { instant: true });
 }
 
-// Inizializza Terreno e GPX all'avvio
+// Inizializza Terreno e GPX all'avvio — con versioning automatico
 async function initWorld() {
   const trackStatus = document.querySelector('#track-status');
   try {
     if (trackStatus) trackStatus.textContent = 'Caricamento terreno 3D di Premana...';
     await terrainManager.loadTerrain('/data/terrain-premana.json');
-    if (trackStatus) trackStatus.textContent = 'Caricamento tracciato GPX...';
-    const res = await fetch('/data/giir-di-mont-32-km.gpx');
-    if (res.ok) {
-      const gpxText = await res.text();
-      parseGpxAndBuild(gpxText, 'Giir di Mont 32 km (Ufficiale)');
+    const latest = versionManager.getLatest();
+    if (latest && latest.snapshot && latest.snapshot.rawTrackPoints && latest.snapshot.rawTrackPoints.length >= 2) {
+      if (trackStatus) trackStatus.textContent = `Caricamento versione ${latest.label}...`;
+      rawTrackPoints = JSON.parse(JSON.stringify(latest.snapshot.rawTrackPoints));
+      if (latest.snapshot.checkpoints) raceManager.checkpoints = JSON.parse(JSON.stringify(latest.snapshot.checkpoints));
+      rebuildTrack3D();
+      createProgressMarker();
+      generateAlpineForest();
+      // sovrascrivi arch da versione se presente
+      if (latest.snapshot.arch && archGroup) {
+        archGroup.position.fromArray(latest.snapshot.arch.pos);
+        archGroup.rotation.set(latest.snapshot.arch.rot[0], latest.snapshot.arch.rot[1], latest.snapshot.arch.rot[2]);
+        if (latest.snapshot.arch.scale) archGroup.scale.fromArray(latest.snapshot.arch.scale);
+      }
+      // sovrascrivi alberi da versione
+      if (latest.snapshot.trees && latest.snapshot.trees.length && treesMesh) {
+        const m = new THREE.Matrix4();
+        // trees snapshot may be larger/smaller than current count — rebuild mesh to match
+        if (latest.snapshot.trees.length !== treesMesh.count) {
+          const treeGeo = new THREE.ConeGeometry(2.4, 11, 5); treeGeo.translate(0, 5.5, 0);
+          const treeMat = new THREE.MeshStandardMaterial({ color: '#1a3826', roughness: 0.9, metalness: 0.0 });
+          const newMesh = new THREE.InstancedMesh(treeGeo, treeMat, latest.snapshot.trees.length);
+          latest.snapshot.trees.forEach((arr, i) => { m.fromArray(arr); newMesh.setMatrixAt(i, m); });
+          newMesh.instanceMatrix.needsUpdate = true; newMesh.castShadow = true; newMesh.receiveShadow = true;
+          scene.remove(treesMesh); treesMesh.geometry.dispose();
+          treesMesh = newMesh; scene.add(treesMesh);
+        } else {
+          latest.snapshot.trees.forEach((arr, i) => { m.fromArray(arr); treesMesh.setMatrixAt(i, m); });
+          treesMesh.instanceMatrix.needsUpdate = true;
+        }
+      }
+      if (trackStatus) trackStatus.textContent = `Versione ${latest.label} (${rawTrackPoints.length} punti)`;
+      setScene('overview', { instant: true });
+    } else {
+      if (trackStatus) trackStatus.textContent = 'Caricamento tracciato GPX...';
+      const res = await fetch('/data/giir-di-mont-32-km.gpx');
+      if (res.ok) {
+        const gpxText = await res.text();
+        parseGpxAndBuild(gpxText, 'Giir di Mont 32 km (Ufficiale)');
+      }
     }
   } catch (err) {
     console.error('Errore caricamento mondo 3D:', err);
@@ -588,6 +625,40 @@ async function initWorld() {
   }
 }
 initWorld();
+// ascolta cambi versione da /edit o /impostazioni
+try {
+  const versionChannel = new BroadcastChannel('giir_version_channel');
+  versionChannel.onmessage = (e) => {
+    if (e.data?.type === 'VERSION_UPDATED') {
+      const latest = versionManager.getLatest();
+      if (latest && latest.snapshot) {
+        rawTrackPoints = JSON.parse(JSON.stringify(latest.snapshot.rawTrackPoints));
+        if (latest.snapshot.checkpoints) raceManager.checkpoints = JSON.parse(JSON.stringify(latest.snapshot.checkpoints));
+        rebuildTrack3D(); generateAlpineForest();
+        if (latest.snapshot.arch && archGroup) {
+          archGroup.position.fromArray(latest.snapshot.arch.pos);
+          archGroup.rotation.set(latest.snapshot.arch.rot[0], latest.snapshot.arch.rot[1], latest.snapshot.arch.rot[2]);
+          if (latest.snapshot.arch.scale) archGroup.scale.fromArray(latest.snapshot.arch.scale);
+        }
+        if (latest.snapshot.trees && latest.snapshot.trees.length && treesMesh) {
+          const m = new THREE.Matrix4();
+          if (latest.snapshot.trees.length !== treesMesh.count) {
+            const treeGeo = new THREE.ConeGeometry(2.4, 11, 5); treeGeo.translate(0, 5.5, 0);
+            const treeMat = new THREE.MeshStandardMaterial({ color: '#1a3826', roughness: 0.9, metalness: 0.0 });
+            const newMesh = new THREE.InstancedMesh(treeGeo, treeMat, latest.snapshot.trees.length);
+            latest.snapshot.trees.forEach((arr, i) => { m.fromArray(arr); newMesh.setMatrixAt(i, m); });
+            newMesh.instanceMatrix.needsUpdate = true; newMesh.castShadow = true; newMesh.receiveShadow = true;
+            scene.remove(treesMesh); treesMesh.geometry.dispose();
+            treesMesh = newMesh; scene.add(treesMesh);
+          } else {
+            latest.snapshot.trees.forEach((arr, i) => { m.fromArray(arr); treesMesh.setMatrixAt(i, m); });
+            treesMesh.instanceMatrix.needsUpdate = true;
+          }
+        }
+      }
+    }
+  };
+} catch {}
 
 // Input file GPX alternativo
 document.querySelector('#gpx-input')?.addEventListener('change', async (e) => {

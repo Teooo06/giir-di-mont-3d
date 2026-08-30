@@ -1,5 +1,6 @@
 import { RaceManager } from './race-manager.js';
 import { SettingsManager } from './settings-manager.js';
+import { VersionManager } from './version-manager.js';
 
 const settingsManager = new SettingsManager();
 const raceManager = new RaceManager({
@@ -39,6 +40,11 @@ connectTimingWs();
 
 // Broadcast channel per notifiche istantanee
 const syncChannel = new BroadcastChannel('giir_sync_channel');
+const versionManager = new VersionManager();
+try {
+  const versionChannel = new BroadcastChannel('giir_version_channel');
+  versionChannel.onmessage = (e) => { if (e.data?.type === 'VERSION_UPDATED') renderVersionList(); };
+} catch {}
 
 // ----------------------------------------------------
 // GESTIONE ATLETI & SPLITS
@@ -491,8 +497,93 @@ function initSettingsUI() {
   }
 }
 
+function renderVersionList() {
+  const c = document.querySelector('#version-list');
+  if (!c) return;
+  const versions = versionManager.list();
+  if (!versions.length) {
+    c.innerHTML = `<div style="font:12px monospace; opacity:0.6; padding:12px; text-align:center;">Nessuna versione salvata.<br>Modifica in <a href="/edit.html" target="_blank">/edit</a> e salva per creare la prima versione.</div>`;
+    return;
+  }
+  c.innerHTML = versions.map((v, idx) => {
+    const d = new Date(v.timestamp);
+    const isLatest = idx === 0;
+    const pts = v.snapshot?.rawTrackPoints?.length || 0;
+    const trees = v.snapshot?.trees?.length || 0;
+    const cps = v.snapshot?.checkpoints?.length || 0;
+    return `<div style="display:flex; align-items:center; gap:8px; padding:8px; border:1px solid ${isLatest ? '#3a5' : '#333'}; background:${isLatest ? '#112' : '#1a1a1a'}; margin-bottom:6px; border-radius:6px;">
+      <div style="flex:1; min-width:0;">
+        <div style="font:600 12px monospace; color:${isLatest ? '#8f8' : '#ddd'};">${isLatest ? '● ATTIVA · ' : ''}${v.label}</div>
+        <div style="font:11px monospace; opacity:0.7;">${d.toLocaleString('it-IT')} · ${pts} punti · ${cps} cp · ${trees} alberi</div>
+      </div>
+      <div style="display:flex; gap:4px; flex-wrap:wrap;">
+        <button data-ver-action="restore" data-ver-id="${v.id}" style="padding:4px 8px; font:11px monospace; background:#223; color:#8ff; border:1px solid #446;">↩ Ripristina</button>
+        <button data-ver-action="rename" data-ver-id="${v.id}" style="padding:4px 8px; font:11px monospace; background:#222; color:#ddd; border:1px solid #333;">✏️ Rinomina</button>
+        <button data-ver-action="export" data-ver-id="${v.id}" style="padding:4px 8px; font:11px monospace; background:#332; color:#ff8; border:1px solid #664;">📤 Esporta</button>
+        <button data-ver-action="delete" data-ver-id="${v.id}" style="padding:4px 8px; font:11px monospace; background:#311; color:#f88; border:1px solid #533;">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+  c.querySelectorAll('[data-ver-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.verId;
+      const action = btn.dataset.verAction;
+      if (action === 'restore') {
+        if (!confirm('Ripristinare questa versione? Sovrascriverà il mondo attivo (verrà comunque salvata una nuova versione di backup).')) return;
+        const snap = versionManager.restoreVersion(id);
+        if (snap) {
+          // broadcast to main and edit
+          try { new BroadcastChannel('giir_version_channel').postMessage({ type: 'VERSION_UPDATED' }); } catch {}
+          alert('Versione ripristinata — ricarica / per vedere le modifiche');
+          renderVersionList();
+        }
+      } else if (action === 'delete') {
+        if (!confirm('Eliminare questa versione?')) return;
+        versionManager.deleteVersion(id);
+        renderVersionList();
+      } else if (action === 'rename') {
+        const cur = versionManager.getById(id);
+        const name = prompt('Nuovo nome versione:', cur?.label || '');
+        if (name !== null) { versionManager.renameVersion(id, name); renderVersionList(); }
+      } else if (action === 'export') {
+        const v = versionManager.getById(id);
+        if (!v) return;
+        const blob = new Blob([JSON.stringify(v, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `giir-version-${v.id}.json`; a.click();
+      }
+    });
+  });
+}
+function initVersionUI() {
+  renderVersionList();
+  document.querySelector('#btn-version-save')?.addEventListener('click', () => {
+    const label = prompt('Nome versione:', `versione ${new Date().toLocaleString('it-IT')}`);
+    if (label === null) return;
+    // crea versione da latest snapshot o da current edit
+    const latest = versionManager.getLatest();
+    const snap = latest ? latest.snapshot : JSON.parse(localStorage.getItem('giir_edit_v1') || 'null');
+    if (!snap) { alert('Nessun salvataggio da versionare — modifica prima in /edit'); return; }
+    versionManager.createVersion(snap, label);
+    try { new BroadcastChannel('giir_version_channel').postMessage({ type: 'VERSION_UPDATED' }); } catch {}
+    renderVersionList();
+  });
+  document.querySelector('#btn-version-clear')?.addEventListener('click', () => {
+    if (!confirm('Cancellare TUTTE le versioni?')) return;
+    versionManager.clearAll();
+    renderVersionList();
+  });
+  document.querySelector('#btn-version-export-all')?.addEventListener('click', () => {
+    const all = versionManager.list();
+    const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `giir-versions-${Date.now()}.json`; a.click();
+  });
+  // auto-refresh ogni 2s per catturare nuove versioni da /edit
+  setInterval(renderVersionList, 2000);
+}
+
 // Inizializza
 renderAthleteTabs();
 populateAthleteForm();
 renderSplitsTable();
 initSettingsUI();
+initVersionUI();

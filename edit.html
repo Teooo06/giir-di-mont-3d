@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Giir di Mont — Editor Mondo 3D (locale)</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="world"></canvas>
+
+      <nav class="nav-tabs hud">
+        <button class="nav-tab active" data-tab="tab-gpx">📍 GPX</button>
+        <button class="nav-tab" data-tab="tab-cp">🏁 Checkpoint</button>
+        <button class="nav-tab" data-tab="tab-arch">⛩️ Arco</button>
+        <button class="nav-tab" data-tab="tab-trees">🌲 Alberi</button>
+        <a href="/" class="nav-tab" style="margin-left:auto; text-decoration:none;">← Torna Regia</a>
+      </nav>
+
+      <aside id="tab-gpx" class="side-panel hud tab-content active">
+        <div class="panel-header">
+          <span class="eyebrow">EDITOR LOCALE — SOLO IN LOCALE</span>
+          <strong>Tracciato GPX</strong>
+        </div>
+        <p class="panel-desc" style="font-size:12px; opacity:0.8;">Drag 3D, tabella numerica, Shift+click multi, drag gruppo (EDIT-02/03). Undo: Ctrl+Z</p>
+        <div style="display:flex; gap:4px; margin:6px 0;">
+          <button id="btn-undo" title="Ctrl+Z" style="flex:1; padding:4px; font:11px monospace; background:#222; color:#ddd; border:1px solid #333;">↩ Undo</button>
+          <button id="btn-redo" title="Ctrl+Shift+Z" style="flex:1; padding:4px; font:11px monospace; background:#222; color:#ddd; border:1px solid #333;">↪ Redo</button>
+          <button id="btn-save-edit" style="flex:1; padding:4px; font:11px monospace; background:#223; color:#8ff; border:1px solid #446;">💾 Salva</button>
+          <button id="btn-export" style="flex:1; padding:4px; font:11px monospace; background:#332; color:#ff8; border:1px solid #664;">📤 Esporta</button>
+        </div>
+        <div class="panel-divider"></div>
+        <div class="panel-header">
+          <span class="eyebrow">TRACCIATO 3D</span>
+          <strong id="track-status">Caricamento...</strong>
+        </div>
+        <label class="import-btn">
+          <input id="gpx-input" type="file" accept=".gpx,application/gpx+xml,application/xml" />
+          📂 Carica GPX locale
+        </label>
+        <div id="edit-gpx-list" class="athletes-list" style="max-height:240px; overflow:auto; margin-top:10px;"></div>
+      </aside>
+
+      <aside id="tab-cp" class="side-panel hud tab-content">
+        <div class="panel-header">
+          <span class="eyebrow">CHECKPOINT</span>
+          <strong>Gestione checkpoint</strong>
+        </div>
+        <p class="panel-desc" style="font-size:12px; opacity:0.8;">Drag 3D + tabella km in EDIT-04.</p>
+        <div id="edit-cp-list"></div>
+      </aside>
+
+      <aside id="tab-arch" class="side-panel hud tab-content">
+        <div class="panel-header">
+          <span class="eyebrow">ARCO GONFIABILE</span>
+          <strong>Bocchetta Larec 14.5km</strong>
+        </div>
+        <p class="panel-desc" style="font-size:12px; opacity:0.8;">TransformControls in EDIT-05. Posizione attuale fissata su master: 120°/-25°/0 + -5/-6/+4.</p>
+        <div id="edit-arch-info" style="font:11px monospace; opacity:0.7;"></div>
+      </aside>
+
+      <aside id="tab-trees" class="side-panel hud tab-content">
+        <div class="panel-header">
+          <span class="eyebrow">FORESTA ALPINA</span>
+          <strong>InstancedMesh 600</strong>
+        </div>
+        <p class="panel-desc" style="font-size:12px; opacity:0.8;">Pick/move/delete/add in EDIT-06.</p>
+        <div id="edit-trees-info"></div>
+      </aside>
+
+      <section class="operator hud">
+        <div class="operator-title">
+          <div>
+            <span class="eyebrow">EDITOR MONDO 3D — LOCALE ONLY</span>
+            <span id="mode">EDIT-07 pronto</span>
+          </div>
+          <span class="tally-tag">EDIT MODE</span>
+        </div>
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <button id="btn-undo2" style="flex:1; padding:6px; font:11px monospace; background:#222; color:#ddd; border:1px solid #333;">↩ Undo (Ctrl+Z)</button>
+          <button id="btn-redo2" style="flex:1; padding:6px; font:11px monospace; background:#222; color:#ddd; border:1px solid #333;">↪ Redo</button>
+          <button id="btn-save-edit2" style="flex:1; padding:6px; font:11px monospace; background:#223; color:#8ff; border:1px solid #446;">💾 Salva locale</button>
+          <button id="btn-export2" style="flex:1; padding:6px; font:11px monospace; background:#332; color:#ff8; border:1px solid #664;">📤 Esporta GPX+JSON</button>
+        </div>
+        <div id="edit-status" style="font:11px monospace; opacity:0.6; margin-top:4px;">pronto</div>
+        <p style="font-size:11px; opacity:0.7; margin:4px 0 0;">
+          <kbd>Trascina</kbd> Ruota · <kbd>Rotella</kbd> Zoom · <kbd>W/E/R</kbd> Arco · <kbd>Del</kbd> Alberi · Esporta copia in <code>public/data/</code> + git commit
+        </p>
+      </section>
+
+      <section id="elevation-profile-container" class="elevation-hud hud"></section>
+    </main>
+    <script type="module" src="/src/edit.js"></script>
+  </body>
+</html>
