@@ -57,10 +57,12 @@ controls.maxPolarAngle = Math.PI * 0.485;
 // YOU-24: gamepad edge state — ponytail: 4 bools for D-pad, no lib
 let gamepadPrevDpad = [false, false, false, false];
 
-// CONTROLLER virtuale — riceve da /controller.html via WS 9998 + BroadcastChannel (stesso device)
+// CONTROLLER virtuale — DJI style, zoom via slider
 let controllerActive = false;
 let controllerOrbit = { x: 0, y: 0 };
 let controllerZoomPan = { x: 0, y: 0 };
+let controllerPan = { x: 0, y: 0 };
+let controllerZoomDist = null;
 try {
   const ctrlChannel = new BroadcastChannel('giir_controller_channel');
   ctrlChannel.onmessage = (e) => {
@@ -88,6 +90,8 @@ function handleControllerMessage(d) {
   if (d.action === 'activate') controllerActive = !!d.active;
   if (d.action === 'orbit') controllerOrbit = { x: d.x || 0, y: d.y || 0 };
   if (d.action === 'zoompan') controllerZoomPan = { x: d.x || 0, y: d.y || 0 };
+  if (d.action === 'pan') controllerPan = { x: d.x || 0, y: d.y || 0 };
+  if (d.action === 'zoom' && Number.isFinite(d.dist)) controllerZoomDist = d.dist;
   if (d.action === 'scene' && d.scene) setScene(d.scene);
   if (d.action === 'timeline' && Number.isFinite(d.km)) {
     const ath = raceManager.getSelectedAthlete();
@@ -1161,29 +1165,46 @@ const clock = new THREE.Clock();
 function frame() {
   requestAnimationFrame(frame);
   const dt = clock.getDelta();
-  // CONTROLLER virtuale — joystick da telefono
+  // CONTROLLER virtuale — DJI style, veloce
   if (controllerActive) {
-    if (Math.abs(controllerOrbit.x) > 0.05 || Math.abs(controllerOrbit.y) > 0.05) {
+    if (Math.abs(controllerOrbit.x) > 0.03 || Math.abs(controllerOrbit.y) > 0.03) {
       const spherical = new THREE.Spherical();
       spherical.setFromVector3(camera.position.clone().sub(controls.target));
-      spherical.theta -= controllerOrbit.x * 0.06;
-      spherical.phi -= controllerOrbit.y * 0.05;
+      spherical.theta -= controllerOrbit.x * 0.15;
+      spherical.phi -= controllerOrbit.y * 0.13;
       spherical.phi = THREE.MathUtils.clamp(spherical.phi, 0.15, Math.PI * 0.48);
       spherical.makeSafe();
       camera.position.setFromSpherical(spherical).add(controls.target);
       controls.update();
     }
-    if (Math.abs(controllerZoomPan.y) > 0.05) {
+    // zoom via slider (assoluto)
+    if (controllerZoomDist !== null) {
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      const curDist = camera.position.distanceTo(controls.target);
+      const newDist = THREE.MathUtils.clamp(THREE.MathUtils.lerp(curDist, controllerZoomDist, 0.12), 40, 2600);
+      camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
+    } else if (Math.abs(controllerZoomPan.y) > 0.05) {
       const dir = camera.position.clone().sub(controls.target).normalize();
       const dist = camera.position.distanceTo(controls.target);
-      const newDist = THREE.MathUtils.clamp(dist - controllerZoomPan.y * 6, 40, 2600);
+      const newDist = THREE.MathUtils.clamp(dist - controllerZoomPan.y * 14, 40, 2600);
       camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
     }
-    if (Math.abs(controllerZoomPan.x) > 0.05) {
+    // pan DJI right stick — x strafe, y forward/back
+    const panX = controllerPan.x !== 0 ? controllerPan.x : controllerZoomPan.x;
+    const panY = controllerPan.y;
+    if (Math.abs(panX) > 0.05) {
       const camDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
       const right = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
-      controls.target.add(right.multiplyScalar(controllerZoomPan.x * 4));
-      camera.position.add(right.multiplyScalar(controllerZoomPan.x * 4));
+      const delta = right.multiplyScalar(panX * 10);
+      controls.target.add(delta);
+      camera.position.add(delta);
+    }
+    if (Math.abs(panY) > 0.05) {
+      const forward = new THREE.Vector3().subVectors(controls.target, camera.position).normalize();
+      forward.y = 0; forward.normalize();
+      const delta = forward.multiplyScalar(panY * 10);
+      controls.target.add(delta);
+      camera.position.add(delta);
     }
   }
 

@@ -45,16 +45,23 @@
 
       <main class="main">
         <div class="joy-wrap">
-          <div class="joy-label">⬅️ ORBITA — sinistra/destra ruota, su/giù inclina</div>
+          <div class="joy-label">⬅️ LEFT — DJI yaw/throttle — sx/dx ruota, su/giù inclina (veloce)</div>
           <div id="joy-left" class="joy"><div id="stick-left" class="stick"></div></div>
-          <div class="hint">Trascina con dito/mouse. Rilascia per tornare al centro. W+E/R per arco in /edit non qui.</div>
+          <div class="hint">DJI Mode 2: stick sx = yaw + throttle. Veloce 2.5×.</div>
         </div>
         <div class="joy-wrap">
-          <div class="joy-label">🔍 ZOOM/PAN — su/giù zoom, sinistra/destra pan</div>
+          <div class="joy-label">➡️ RIGHT — DJI pitch/roll — avanti/indietro + pan laterale</div>
           <div id="joy-right" class="joy"><div id="stick-right" class="stick"></div></div>
-          <div class="hint">Su = zoom in, Giù = zoom out. Attivo solo se controllo attivo.</div>
+          <div class="hint">Stick dx = pitch/roll. Zoom con slider sotto.</div>
         </div>
       </main>
+      <section class="controls" style="padding:8px 12px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <label for="zoom-slider" style="font:600 12px monospace; min-width:60px;">🔍 ZOOM</label>
+          <input id="zoom-slider" type="range" min="40" max="2600" step="10" value="400" style="flex:1; accent-color:#dff654;" />
+          <b id="zoom-val" style="font:11px monospace; min-width:60px; text-align:right;">400</b>
+        </div>
+      </section>
 
       <section class="controls">
         <div class="scenes">

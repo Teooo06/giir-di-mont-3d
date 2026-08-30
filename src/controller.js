@@ -5,6 +5,8 @@ const btnActivate = document.querySelector('#btn-activate');
 const timelineSlider = document.querySelector('#timeline-slider');
 const timelineVal = document.querySelector('#timeline-val');
 const btnPlay = document.querySelector('#btn-play');
+const zoomSlider = document.querySelector('#zoom-slider');
+const zoomVal = document.querySelector('#zoom-val');
 
 let ws = null;
 let active = false;
@@ -99,6 +101,12 @@ timelineSlider?.addEventListener('input', (e) => {
 btnPlay?.addEventListener('click', () => {
   send({ action: 'playpause' });
 });
+// ZOOM slider — DJI style
+zoomSlider?.addEventListener('input', (e) => {
+  const dist = parseFloat(e.target.value);
+  if (zoomVal) zoomVal.textContent = dist.toFixed(0);
+  send({ action: 'zoom', dist });
+});
 
 // Joystick helper — multi-touch safe via Pointer Events + pointerId per joystick
 function makeJoystick(baseEl, stickEl, onMove) {
@@ -174,12 +182,14 @@ const stickRight = document.querySelector('#stick-right');
 
 if (joyLeft && stickLeft) {
   makeJoystick(joyLeft, stickLeft, (x, y) => {
-    send({ action: 'orbit', x, y });
+    // DJI left: x=yaw, y=pitch — send faster (2.5x)
+    send({ action: 'orbit', x: x * 2.5, y: y * 2.5 });
   });
 }
 if (joyRight && stickRight) {
   makeJoystick(joyRight, stickRight, (x, y) => {
-    send({ action: 'zoompan', x, y });
+    // DJI right: x=roll (strafe), y=pitch (forward/back) — pan
+    send({ action: 'pan', x, y });
   });
 }
 
