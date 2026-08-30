@@ -582,20 +582,23 @@ async function initWorld() {
     if (latest && latest.snapshot && latest.snapshot.rawTrackPoints && latest.snapshot.rawTrackPoints.length >= 2) {
       if (trackStatus) trackStatus.textContent = `Caricamento versione ${latest.label}...`;
       rawTrackPoints = JSON.parse(JSON.stringify(latest.snapshot.rawTrackPoints));
+      // fix direzione tracciato: se invertito (marker a ritroso) rimetti ordine corretto
+      if (rawTrackPoints.length >= 2) {
+        const startLat = 46.053108, startLon = 9.420741;
+        const endLat = 46.052978, endLon = 9.420907;
+        const dFirstStart = Math.hypot(rawTrackPoints[0].lat - startLat, rawTrackPoints[0].lon - startLon);
+        const dFirstEnd = Math.hypot(rawTrackPoints[0].lat - endLat, rawTrackPoints[0].lon - endLon);
+        if (dFirstEnd < dFirstStart) rawTrackPoints.reverse();
+      }
       if (latest.snapshot.checkpoints) raceManager.checkpoints = JSON.parse(JSON.stringify(latest.snapshot.checkpoints));
       rebuildTrack3D();
       createProgressMarker();
       generateAlpineForest();
-      // sovrascrivi arch da versione se presente
-      if (latest.snapshot.arch && archGroup) {
-        archGroup.position.fromArray(latest.snapshot.arch.pos);
-        archGroup.rotation.set(latest.snapshot.arch.rot[0], latest.snapshot.arch.rot[1], latest.snapshot.arch.rot[2]);
-        if (latest.snapshot.arch.scale) archGroup.scale.fromArray(latest.snapshot.arch.scale);
-      }
+      // HOTFIX: mantieni arco definitivo (non sovrascrivere da versione) — utente ha fissato 120/-25/0 + -5/-6/+4
+      // se vuoi ripristinare arch da versione, modifica /edit e salva nuova versione con arch corretto
       // sovrascrivi alberi da versione
       if (latest.snapshot.trees && latest.snapshot.trees.length && treesMesh) {
         const m = new THREE.Matrix4();
-        // trees snapshot may be larger/smaller than current count — rebuild mesh to match
         if (latest.snapshot.trees.length !== treesMesh.count) {
           const treeGeo = new THREE.ConeGeometry(2.4, 11, 5); treeGeo.translate(0, 5.5, 0);
           const treeMat = new THREE.MeshStandardMaterial({ color: '#1a3826', roughness: 0.9, metalness: 0.0 });
@@ -633,13 +636,16 @@ try {
       const latest = versionManager.getLatest();
       if (latest && latest.snapshot) {
         rawTrackPoints = JSON.parse(JSON.stringify(latest.snapshot.rawTrackPoints));
+        if (rawTrackPoints.length >= 2) {
+          const startLat = 46.053108, startLon = 9.420741;
+          const endLat = 46.052978, endLon = 9.420907;
+          const dFirstStart = Math.hypot(rawTrackPoints[0].lat - startLat, rawTrackPoints[0].lon - startLon);
+          const dFirstEnd = Math.hypot(rawTrackPoints[0].lat - endLat, rawTrackPoints[0].lon - endLon);
+          if (dFirstEnd < dFirstStart) rawTrackPoints.reverse();
+        }
         if (latest.snapshot.checkpoints) raceManager.checkpoints = JSON.parse(JSON.stringify(latest.snapshot.checkpoints));
         rebuildTrack3D(); generateAlpineForest();
-        if (latest.snapshot.arch && archGroup) {
-          archGroup.position.fromArray(latest.snapshot.arch.pos);
-          archGroup.rotation.set(latest.snapshot.arch.rot[0], latest.snapshot.arch.rot[1], latest.snapshot.arch.rot[2]);
-          if (latest.snapshot.arch.scale) archGroup.scale.fromArray(latest.snapshot.arch.scale);
-        }
+        // HOTFIX: mantieni arco definitivo, non sovrascrivere da versione
         if (latest.snapshot.trees && latest.snapshot.trees.length && treesMesh) {
           const m = new THREE.Matrix4();
           if (latest.snapshot.trees.length !== treesMesh.count) {
