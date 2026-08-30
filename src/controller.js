@@ -196,7 +196,7 @@ const stickRight = document.querySelector('#stick-right');
 
 if (joyLeft && stickLeft) {
   makeJoystick(joyLeft, stickLeft, (x, y) => {
-    send({ action: 'orbit', x: x * 2.5 * speedMult, y: y * 2.5 * speedMult });
+    send({ action: 'orbit', x: x * speedMult, y: y * speedMult });
   });
 }
 if (joyRight && stickRight) {

@@ -89,10 +89,18 @@ function connectControllerWs() {
 connectControllerWs();
 function handleControllerMessage(d) {
   if (d.action === 'activate') controllerActive = !!d.active;
-  if (d.action === 'orbit') { controllerOrbit = { x: d.x || 0, y: d.y || 0 }; if (d.x || d.y) controllerActive = true; }
+  if (d.action === 'orbit') { controllerOrbit = { x: d.x || 0, y: d.y || 0 }; controllerActive = true; }
   if (d.action === 'zoompan') controllerZoomPan = { x: d.x || 0, y: d.y || 0 };
-  if (d.action === 'pan') { controllerPan = { x: d.x || 0, y: d.y || 0 }; if (d.x || d.y) controllerActive = true; }
+  if (d.action === 'pan') { controllerPan = { x: d.x || 0, y: d.y || 0 }; controllerActive = true; }
   if (d.action === 'zoom' && Number.isFinite(d.dist)) controllerZoomDist = d.dist;
+  if (d.action === 'zoom' && Number.isFinite(d.delta)) {
+    // ghiera DJI: delta -1..1, applica zoom immediato
+    const dir = camera.position.clone().sub(controls.target).normalize();
+    const dist = camera.position.distanceTo(controls.target);
+    const nd = THREE.MathUtils.clamp(dist - d.delta * 18, 40, 1200);
+    camera.position.copy(controls.target).add(dir.multiplyScalar(nd));
+    controllerActive = true;
+  }
   if (d.action === 'speed' && Number.isFinite(d.value)) controllerSpeed = Math.max(0.3, Math.min(2.5, d.value));
   if (d.action === 'scene' && d.scene) setScene(d.scene);
   if (d.action === 'timeline' && Number.isFinite(d.km)) {
@@ -1167,14 +1175,14 @@ const clock = new THREE.Clock();
 function frame() {
   requestAnimationFrame(frame);
   const dt = clock.getDelta();
-  // CONTROLLER virtuale — DJI style, veloce + speed slider
+  // CONTROLLER virtuale — DJI style + speed slider (default 1.0, range 0.3-2.5)
   if (controllerActive) {
     const s = controllerSpeed;
     if (Math.abs(controllerOrbit.x) > 0.03 || Math.abs(controllerOrbit.y) > 0.03) {
       const spherical = new THREE.Spherical();
       spherical.setFromVector3(camera.position.clone().sub(controls.target));
-      spherical.theta -= controllerOrbit.x * 0.15 * s;
-      spherical.phi -= controllerOrbit.y * 0.13 * s;
+      spherical.theta -= controllerOrbit.x * 0.06 * s;
+      spherical.phi -= controllerOrbit.y * 0.05 * s;
       spherical.phi = THREE.MathUtils.clamp(spherical.phi, 0.15, Math.PI * 0.48);
       spherical.makeSafe();
       camera.position.setFromSpherical(spherical).add(controls.target);
@@ -1196,14 +1204,14 @@ function frame() {
     if (Math.abs(panX) > 0.05) {
       const camDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
       const right = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
-      const delta = right.multiplyScalar(panX * 10 * s);
+      const delta = right.multiplyScalar(panX * 6 * s);
       controls.target.add(delta);
       camera.position.add(delta);
     }
     if (Math.abs(panY) > 0.05) {
       const forward = new THREE.Vector3().subVectors(controls.target, camera.position).normalize();
       forward.y = 0; forward.normalize();
-      const delta = forward.multiplyScalar(panY * 10 * s);
+      const delta = forward.multiplyScalar(panY * 6 * s);
       controls.target.add(delta);
       camera.position.add(delta);
     }
