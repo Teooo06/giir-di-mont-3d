@@ -55,8 +55,19 @@ function connectWs() {
 connectWs();
 
 function send(payload) {
-  if (!active || !wsReady || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!active || !wsReady || !ws || ws.readyState !== WebSocket.OPEN) {
+    // still try BroadcastChannel for same-device
+    try { new BroadcastChannel('giir_controller_channel').postMessage({ type: 'controller', ...payload }); } catch {}
+    if (!active) return;
+    if (!wsReady) {
+      // still allow BroadcastChannel even if WS not ready
+      return;
+    }
+    return;
+  }
   try { ws.send(JSON.stringify({ type: 'controller', ...payload })); } catch {}
+  // also broadcast locally for same-device testing
+  try { new BroadcastChannel('giir_controller_channel').postMessage({ type: 'controller', ...payload }); } catch {}
 }
 
 btnActivate?.addEventListener('click', () => {
@@ -64,9 +75,10 @@ btnActivate?.addEventListener('click', () => {
   btnActivate.textContent = active ? '⏹️ Disattiva Controllo' : '▶️ Attiva Controllo';
   btnActivate.classList.toggle('active', active);
   setStatus(active ? (wsReady ? 'connesso + attivo' : 'attivo (in attesa WS)') : (wsReady ? 'connesso (pausa)' : 'disconnesso'), wsReady && active);
-  if (active) {
-    // also notify main via BroadcastChannel for same-device testing (controller aperto su stesso PC)
-    try { new BroadcastChannel('giir_controller_channel').postMessage({ type: 'controller', action: 'activate', active: true }); } catch {}
+  try { new BroadcastChannel('giir_controller_channel').postMessage({ type: 'controller', action: 'activate', active }); } catch {}
+  // also send via WS
+  if (wsReady) {
+    try { ws.send(JSON.stringify({ type: 'controller', action: 'activate', active })); } catch {}
   }
 });
 
@@ -75,7 +87,6 @@ document.querySelectorAll('[data-scene]').forEach(btn => {
   btn.addEventListener('click', () => {
     const scene = btn.dataset.scene;
     send({ action: 'scene', scene });
-    try { new BroadcastChannel('giir_controller_channel').postMessage({ type: 'controller', action: 'scene', scene }); } catch {}
   });
 });
 
@@ -84,89 +95,76 @@ timelineSlider?.addEventListener('input', (e) => {
   const km = parseFloat(e.target.value);
   if (timelineVal) timelineVal.textContent = `${km.toFixed(1)} km`;
   send({ action: 'timeline', km });
-  try { new BroadcastChannel('giir_controller_channel').postMessage({ type: 'controller', action: 'timeline', km }); } catch {}
 });
 btnPlay?.addEventListener('click', () => {
   send({ action: 'playpause' });
-  try { new BroadcastChannel('giir_controller_channel').postMessage({ type: 'controller', action: 'playpause' }); } catch {}
 });
 
-// Joystick helper
+// Joystick helper — multi-touch safe via Pointer Events + pointerId per joystick
 function makeJoystick(baseEl, stickEl, onMove) {
-  const baseRect = () => baseEl.getBoundingClientRect();
-  const maxDist = 60; // max stick travel
+  const maxDist = 60;
   let dragging = false;
-  let activeTouchId = null;
+  let activePointerId = null;
   let raf = null;
-  let lastX = 0, lastY = 0;
 
-  function setStick(dx, dy) {
+  function setStick(clientX, clientY) {
+    const rect = baseEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = clientX - cx;
+    let dy = clientY - cy;
     const dist = Math.hypot(dx, dy);
-    let nx = dx, ny = dy;
     if (dist > maxDist) {
       const a = Math.atan2(dy, dx);
-      nx = Math.cos(a) * maxDist;
-      ny = Math.sin(a) * maxDist;
+      dx = Math.cos(a) * maxDist;
+      dy = Math.sin(a) * maxDist;
     }
-    stickEl.style.transform = `translate(${nx}px, ${ny}px)`;
-    // normalize -1..1
-    lastX = nx / maxDist;
-    lastY = -ny / maxDist; // invert Y so up is +1
+    stickEl.style.transform = `translate(${dx}px, ${dy}px)`;
+    const nx = dx / maxDist;
+    const ny = -dy / maxDist;
     if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => onMove(lastX, lastY));
+    raf = requestAnimationFrame(() => onMove(nx, ny));
   }
   function resetStick() {
     stickEl.style.transform = 'translate(0, 0)';
-    lastX = 0; lastY = 0;
     onMove(0, 0);
   }
-  function getPos(e) {
-    const t = e.touches ? (e.touches[0] || e.changedTouches[0]) : e;
-    const r = baseRect();
-    const cx = r.left + r.width / 2;
-    const cy = r.top + r.height / 2;
-    return { dx: t.clientX - cx, dy: t.clientY - cy };
-  }
-  function onDown(e) {
-    if (!active) return;
-    dragging = true;
-    if (e.touches) activeTouchId = e.touches[0].identifier;
-    baseEl.setPointerCapture?.(e.pointerId);
-    e.preventDefault();
-    const { dx, dy } = getPos(e);
-    setStick(dx, dy);
-  }
-  function onMoveRaw(e) {
-    if (!dragging) return;
-    if (e.touches && activeTouchId !== null) {
-      let found = null;
-      for (let i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === activeTouchId) found = e.touches[i];
-      if (!found) return;
-      const r = baseRect();
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      const dx = found.clientX - cx, dy = found.clientY - cy;
-      setStick(dx, dy);
-    } else {
-      const { dx, dy } = getPos(e);
-      setStick(dx, dy);
+
+  baseEl.addEventListener('pointerdown', (e) => {
+    if (!active) {
+      // hint: need to activate first
+      setStatus('premi Attiva prima', false);
+      return;
     }
+    if (dragging) return; // already dragging this stick
+    dragging = true;
+    activePointerId = e.pointerId;
+    try { baseEl.setPointerCapture(e.pointerId); } catch {}
     e.preventDefault();
-  }
-  function onUp(e) {
-    if (!dragging) return;
+    setStick(e.clientX, e.clientY);
+  });
+  // Use window for move/up so we track even outside base
+  window.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerId !== activePointerId) return;
+    setStick(e.clientX, e.clientY);
+    e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('pointerup', (e) => {
+    if (!dragging || e.pointerId !== activePointerId) return;
     dragging = false;
-    activeTouchId = null;
+    activePointerId = null;
+    try { baseEl.releasePointerCapture(e.pointerId); } catch {}
     resetStick();
-  }
-  // mouse + touch + pointer
-  baseEl.addEventListener('pointerdown', onDown);
-  window.addEventListener('pointermove', onMoveRaw);
-  window.addEventListener('pointerup', onUp);
-  baseEl.addEventListener('touchstart', onDown, { passive: false });
-  baseEl.addEventListener('touchmove', onMoveRaw, { passive: false });
-  baseEl.addEventListener('touchend', onUp);
-  baseEl.addEventListener('touchcancel', onUp);
+  });
+  window.addEventListener('pointercancel', (e) => {
+    if (e.pointerId !== activePointerId) return;
+    dragging = false;
+    activePointerId = null;
+    resetStick();
+  });
+  // Prevent scrolling/zooming on the joystick area
+  baseEl.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+  baseEl.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
 }
 
 const joyLeft = document.querySelector('#joy-left');
@@ -176,16 +174,12 @@ const stickRight = document.querySelector('#stick-right');
 
 if (joyLeft && stickLeft) {
   makeJoystick(joyLeft, stickLeft, (x, y) => {
-    // left: orbit
     send({ action: 'orbit', x, y });
-    try { new BroadcastChannel('giir_controller_channel').postMessage({ type: 'controller', action: 'orbit', x, y }); } catch {}
   });
 }
 if (joyRight && stickRight) {
   makeJoystick(joyRight, stickRight, (x, y) => {
-    // right: x=pan, y=zoom
     send({ action: 'zoompan', x, y });
-    try { new BroadcastChannel('giir_controller_channel').postMessage({ type: 'controller', action: 'zoompan', x, y }); } catch {}
   });
 }
 
