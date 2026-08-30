@@ -104,12 +104,18 @@ timelineSlider?.addEventListener('input', (e) => {
 btnPlay?.addEventListener('click', () => {
   send({ action: 'playpause' });
 });
-// ZOOM slider — DJI style
+// ZOOM slider — invertito (dx = zoom in) + range 40-1200
 zoomSlider?.addEventListener('input', (e) => {
-  const dist = parseFloat(e.target.value);
+  const raw = parseFloat(e.target.value);
+  const dist = 1240 - raw + 40; // inverti: slider dx (1200) -> dist 40 (vicino)
   if (zoomVal) zoomVal.textContent = dist.toFixed(0);
   send({ action: 'zoom', dist });
 });
+// init zoom display invertito
+if (zoomSlider && zoomVal) {
+  const raw = parseFloat(zoomSlider.value);
+  zoomVal.textContent = (1240 - raw + 40).toFixed(0);
+}
 speedSlider?.addEventListener('input', (e) => {
   speedMult = parseFloat(e.target.value);
   if (speedVal) speedVal.textContent = speedMult.toFixed(1) + '×';

@@ -1305,25 +1305,34 @@ function frame() {
     if (t >= 1) { camTween = null; targetPos.copy(controls.target); controls.dampingFactor = 0.08; }
   }
 
-  // YOU-24: gamepad poll — ponytail: native navigator.getGamepads(), left stick orbit / right stick zoom / D-pad scenes, dead-zone 0.15 calibration knob
+  // YOU-24 + DJI RC-N1: gamepad poll — left stick orbit, right stick zoom+pan, D-pad scenes, dead-zone 0.15, speed via controllerSpeed
   try {
     const gp = navigator.getGamepads ? navigator.getGamepads()[0] : null;
     if (gp && gp.connected) {
       const dz = 0.15;
+      const s = controllerSpeed || 1.0;
       const lx = Math.abs(gp.axes[0] || 0) > dz ? gp.axes[0] : 0;
       const ly = Math.abs(gp.axes[1] || 0) > dz ? gp.axes[1] : 0;
       if ((lx || ly) && !camTween) {
         const sph = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
-        sph.theta -= lx * 0.03;
-        sph.phi = THREE.MathUtils.clamp(sph.phi + ly * 0.03, 0.1, Math.PI * 0.48);
+        sph.theta -= lx * 0.05 * s;
+        sph.phi = THREE.MathUtils.clamp(sph.phi + ly * 0.05 * s, 0.1, Math.PI * 0.48);
         camera.position.setFromSpherical(sph).add(controls.target);
       }
+      const rx = Math.abs(gp.axes[2] || 0) > dz ? gp.axes[2] : 0;
       const ry = Math.abs(gp.axes[3] || 0) > dz ? gp.axes[3] : 0;
       if (ry && !camTween) {
         const dir = camera.position.clone().sub(controls.target);
         const dist = dir.length();
-        const nd = THREE.MathUtils.clamp(dist + ry * dist * 0.04, controls.minDistance, controls.maxDistance);
+        const nd = THREE.MathUtils.clamp(dist + ry * dist * 0.06 * s, controls.minDistance, controls.maxDistance);
         camera.position.copy(controls.target).add(dir.normalize().multiplyScalar(nd));
+      }
+      if (rx && !camTween) {
+        const camDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+        const right = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
+        const delta = right.multiplyScalar(rx * 8 * s);
+        controls.target.add(delta);
+        camera.position.add(delta);
       }
       // D-pad → scenes (edge trigger, no repeat while held)
       const dpadBtns = [12, 15, 13, 14]; // up,right,down,left → overview,runner,checkpoint,topdown
