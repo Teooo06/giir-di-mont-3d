@@ -572,6 +572,28 @@ function parseGpxAndBuild(xmlText, filename = 'giir-di-mont-32-km.gpx') {
   setScene('overview', { instant: true });
 }
 
+function isValidTrackForVersion(points) {
+  if (!points || points.length < 500) return false;
+  // haversine helper
+  const toRad = (d) => d * Math.PI / 180;
+  const hav = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  };
+  let total = 0, maxJump = 0;
+  for (let i = 1; i < points.length; i++) {
+    const d = hav(points[i - 1].lat, points[i - 1].lon, points[i].lat, points[i].lon);
+    total += d;
+    if (d > maxJump) maxJump = d;
+    if (d > 800) return false; // singolo salto >800m = punto corrotto (es. drag a caso)
+  }
+  if (total < 20000 || total > 50000) return false;
+  if (maxJump > 500) return false;
+  return true;
+}
 // Inizializza Terreno e GPX all'avvio — con versioning automatico
 async function initWorld() {
   const trackStatus = document.querySelector('#track-status');
@@ -580,17 +602,30 @@ async function initWorld() {
     await terrainManager.loadTerrain('/data/terrain-premana.json');
     const latest = versionManager.getLatest();
     if (latest && latest.snapshot && latest.snapshot.rawTrackPoints && latest.snapshot.rawTrackPoints.length >= 2) {
-      if (trackStatus) trackStatus.textContent = `Caricamento versione ${latest.label}...`;
-      rawTrackPoints = JSON.parse(JSON.stringify(latest.snapshot.rawTrackPoints));
-      // fix direzione tracciato: se invertito (marker a ritroso) rimetti ordine corretto
-      if (rawTrackPoints.length >= 2) {
+      let candidate = JSON.parse(JSON.stringify(latest.snapshot.rawTrackPoints));
+      // fix direzione tracciato: se invertito rimetti ordine corretto (loop: confronta primo vs ultimo)
+      if (candidate.length >= 2) {
         const startLat = 46.053108, startLon = 9.420741;
-        const endLat = 46.052978, endLon = 9.420907;
-        const dFirstStart = Math.hypot(rawTrackPoints[0].lat - startLat, rawTrackPoints[0].lon - startLon);
-        const dFirstEnd = Math.hypot(rawTrackPoints[0].lat - endLat, rawTrackPoints[0].lon - endLon);
-        if (dFirstEnd < dFirstStart) rawTrackPoints.reverse();
+        const dFirst = Math.hypot(candidate[0].lat - startLat, candidate[0].lon - startLon);
+        const dLast = Math.hypot(candidate[candidate.length - 1].lat - startLat, candidate[candidate.length - 1].lon - startLon);
+        if (dLast < dFirst) candidate.reverse();
       }
-      if (latest.snapshot.checkpoints) raceManager.checkpoints = JSON.parse(JSON.stringify(latest.snapshot.checkpoints));
+      if (!isValidTrackForVersion(candidate)) {
+        console.warn('[Version] tracciato versione corrotto (salto >800m o lunghezza anomala), ripristino originale e pulizia versioni');
+        versionManager.clearAll();
+        try { localStorage.removeItem('giir_edit_v1'); } catch {}
+        if (trackStatus) trackStatus.textContent = 'Versione corrotta — ripristino originale...';
+        const res = await fetch('/data/giir-di-mont-32-km.gpx');
+        if (res.ok) { const gpxText = await res.text(); parseGpxAndBuild(gpxText, 'Giir di Mont 32 km (Ufficiale)'); }
+        return;
+      }
+      if (trackStatus) trackStatus.textContent = `Caricamento versione ${latest.label}...`;
+      rawTrackPoints = candidate;
+      if (latest.snapshot.checkpoints) {
+        raceManager.checkpoints = JSON.parse(JSON.stringify(latest.snapshot.checkpoints));
+        // ordina checkpoint per km crescente (evita marker a caso se km disordinati)
+        raceManager.checkpoints.sort((a, b) => a.km - b.km);
+      }
       rebuildTrack3D();
       createProgressMarker();
       generateAlpineForest();
@@ -635,15 +670,22 @@ try {
     if (e.data?.type === 'VERSION_UPDATED') {
       const latest = versionManager.getLatest();
       if (latest && latest.snapshot) {
-        rawTrackPoints = JSON.parse(JSON.stringify(latest.snapshot.rawTrackPoints));
-        if (rawTrackPoints.length >= 2) {
+        let candidate = JSON.parse(JSON.stringify(latest.snapshot.rawTrackPoints));
+        if (candidate.length >= 2) {
           const startLat = 46.053108, startLon = 9.420741;
-          const endLat = 46.052978, endLon = 9.420907;
-          const dFirstStart = Math.hypot(rawTrackPoints[0].lat - startLat, rawTrackPoints[0].lon - startLon);
-          const dFirstEnd = Math.hypot(rawTrackPoints[0].lat - endLat, rawTrackPoints[0].lon - endLon);
-          if (dFirstEnd < dFirstStart) rawTrackPoints.reverse();
+          const dFirst = Math.hypot(candidate[0].lat - startLat, candidate[0].lon - startLon);
+          const dLast = Math.hypot(candidate[candidate.length - 1].lat - startLat, candidate[candidate.length - 1].lon - startLon);
+          if (dLast < dFirst) candidate.reverse();
         }
-        if (latest.snapshot.checkpoints) raceManager.checkpoints = JSON.parse(JSON.stringify(latest.snapshot.checkpoints));
+        if (!isValidTrackForVersion(candidate)) {
+          console.warn('[Version] broadcast versione corrotta — ignorata');
+          return;
+        }
+        rawTrackPoints = candidate;
+        if (latest.snapshot.checkpoints) {
+          raceManager.checkpoints = JSON.parse(JSON.stringify(latest.snapshot.checkpoints));
+          raceManager.checkpoints.sort((a, b) => a.km - b.km);
+        }
         rebuildTrack3D(); generateAlpineForest();
         // HOTFIX: mantieni arco definitivo, non sovrascrivere da versione
         if (latest.snapshot.trees && latest.snapshot.trees.length && treesMesh) {

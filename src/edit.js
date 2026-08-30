@@ -97,10 +97,45 @@ function captureEditState() {
   }
   return { rawTrackPoints: JSON.parse(JSON.stringify(rawTrackPoints)), checkpoints: JSON.parse(JSON.stringify(raceManager.checkpoints)), arch, trees };
 }
+function isValidTrackForVersion(points) {
+  if (!points || points.length < 500) return false;
+  const toRad = (d) => d * Math.PI / 180;
+  const hav = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  };
+  let total = 0, maxJump = 0;
+  for (let i = 1; i < points.length; i++) {
+    const d = hav(points[i - 1].lat, points[i - 1].lon, points[i].lat, points[i].lon);
+    total += d;
+    if (d > maxJump) maxJump = d;
+    if (d > 800) return false;
+  }
+  if (total < 20000 || total > 50000) return false;
+  if (maxJump > 500) return false;
+  return true;
+}
 function restoreEditState(s) {
   if (!s) return;
-  if (s.rawTrackPoints) rawTrackPoints = JSON.parse(JSON.stringify(s.rawTrackPoints));
-  if (s.checkpoints) { raceManager.checkpoints = JSON.parse(JSON.stringify(s.checkpoints)); }
+  if (s.rawTrackPoints) {
+    let cand = JSON.parse(JSON.stringify(s.rawTrackPoints));
+    // fix direzione se invertita
+    if (cand.length >= 2) {
+      const startLat = 46.053108, startLon = 9.420741;
+      const dFirst = Math.hypot(cand[0].lat - startLat, cand[0].lon - startLon);
+      const dLast = Math.hypot(cand[cand.length - 1].lat - startLat, cand[cand.length - 1].lon - startLon);
+      if (dLast < dFirst) cand.reverse();
+    }
+    if (!isValidTrackForVersion(cand)) {
+      console.warn('[Edit] snapshot corrotto, ignoro rawTrackPoints');
+    } else {
+      rawTrackPoints = cand;
+    }
+  }
+  if (s.checkpoints) { raceManager.checkpoints = JSON.parse(JSON.stringify(s.checkpoints)); raceManager.checkpoints.sort((a,b)=>a.km-b.km); }
   // arch will be reapplied after rebuildTrack3D
   const archSnap = s.arch;
   if (s.trees && s.trees.length) {
@@ -131,12 +166,17 @@ function restoreEditState(s) {
 function pushHistory() {
   try {
     const snap = captureEditState();
+    if (!isValidTrackForVersion(snap.rawTrackPoints)) {
+      console.warn('[Edit] track non valido, non creo versione');
+      updateHistoryUI();
+      return;
+    }
     editHistory.push(snap);
     updateHistoryUI();
-    // auto-version debounce 2s
     clearTimeout(autoVersionDebounce);
     autoVersionDebounce = setTimeout(() => {
       try {
+        if (!isValidTrackForVersion(snap.rawTrackPoints)) return;
         versionManager.createVersion(snap, `auto ${new Date().toLocaleTimeString('it-IT')}`);
         try { new BroadcastChannel('giir_version_channel').postMessage({ type: 'VERSION_UPDATED' }); } catch {}
         updateHistoryUI();
@@ -157,6 +197,7 @@ function updateHistoryUI() {
 function saveEditLocal() {
   try {
     const snap = captureEditState();
+    if (!isValidTrackForVersion(snap.rawTrackPoints)) { alert('Track non valido (salto >800m o lunghezza anomala) — non salvo. Correggi i punti prima.'); return; }
     localStorage.setItem('giir_edit_v1', JSON.stringify(snap));
     versionManager.createVersion(snap, `salvataggio manuale ${new Date().toLocaleTimeString('it-IT')}`);
     try { new BroadcastChannel('giir_version_channel').postMessage({ type: 'VERSION_UPDATED' }); } catch {}
@@ -934,7 +975,10 @@ addEventListener('keydown', (e) => {
     e.preventDefault(); doRedo();
   }
 });
-setInterval(() => { saveEditLocal(); updateHistoryUI(); }, 3000);
+setInterval(() => {
+  try { localStorage.setItem('giir_edit_v1', JSON.stringify(captureEditState())); } catch {}
+  updateHistoryUI();
+}, 3000);
 updateHistoryUI();
 // load local if exists after world ready — hook into initWorld tail
 const _origInitWorld = initWorld;
@@ -944,8 +988,17 @@ async function tryLoadEdit() {
   if (_hasTriedLoad) return; _hasTriedLoad = true;
   const saved = loadEditLocal();
   if (saved && saved.rawTrackPoints && saved.rawTrackPoints.length) {
-    if (confirm('Trovato salvataggio locale giir_edit_v1. Ripristinare? OK=ripristina, Annulla=ignora')) {
+    if (!isValidTrackForVersion(saved.rawTrackPoints)) {
+      console.warn('[Edit] salvataggio corrotto, lo ignoro e pulisco versioni');
+      versionManager.clearAll();
+      try { localStorage.removeItem('giir_edit_v1'); } catch {}
+      return;
+    }
+    if (confirm('Trovato salvataggio locale. Ripristinare ultima versione? OK=ripristina, Annulla=usa originale')) {
       restoreEditState(saved);
+    } else {
+      // utente ha scelto originale: pulisci versioni corrotte?
+      // mantieni per storia, non pulire
     }
   }
 }
