@@ -470,16 +470,37 @@ Trivial 1-2-line CSS/HTML (`UI-01/02/03`) need no automated test — screenshot 
 
 ## 13. User-requested changes (fix/user-changes — 2026-08-30)
 
-Modifiche richieste direttamente dall'operatore, implementate su branch `fix/user-changes`.
+Modifiche richieste direttamente dall'operatore, implementate su branch `fix/user-changes` e mergeate in `master` 276c90e.
 
 | Modifica | File | Issue |
 |----------|------|-------|
-| Arco Bocchetta Larec rotation | `main.js:409`, `arch.js` | #159 |
-| Sfere checkpoint dimezzate | `main.js:310,319` | #160 |
-| Tracciato GPX fluido | `main.js:405-407,429,472-474` | #161 |
-| Qualità NDI soft shadow + exposure | `src/ndi-streamer.js:68-70` | #162 |
-| Toggle camera auto/manual (tasto F) | `main.js:530-531,1095-1145` | #163 |
-| Marker progresso + custom GPX | `main.js:210-238,1093`, `impostazioni.html`, `impostazioni.js` | #164, #165 |
+| Arco Bocchetta Larec rotation 135° → definitivo 120°/-25°/0 + pos -5/-6/+4 | `main.js:476-481`, `arch.js` | #159 #167 |
+| Sfere checkpoint dimezzate (4.8→2.4, 1.0→0.5) | `main.js:351,360` | #160 |
+| Tracciato GPX fluido CatmullRom 2000 + Tube 1000 → Chaikin 2 iter | `main.js:391-417` | #161 #168 |
+| Qualità NDI PCFSoftShadowMap + toneMapping 1.12 + alpha:false + gl.finish() | `src/ndi-streamer.js:59-70,191` | #162 |
+| Toggle camera auto/manual (tasto F) | `main.js:604,722` | #163 |
+| Marker progresso + custom GPX | `main.js:220-232,540`, `impostazioni.html` | #164 #165 |
+| Track style toggle rainbow lento 63s / solid + trackTravelColor | `main.js:439,509`, `settings-manager.js:26` | #166 |
+| Zenith fog density 0 in topdown | `main.js:1133` | #169 |
+| Blocca bottoni scene durante ndiTween | `main.js:641,697,1292` | #170 |
+| Fix TDZ worldPoints | `main.js:409` | — |
+
+## 14. World Editor locale `/edit` (feature/world-editor — 2026-08-30)
+
+Editor 3D isolato locale only, non esposto in NDI, per modifica persistente di GPX, checkpoint, arco, alberi con tabella numerica, multi-selezione e undo/redo.
+
+| Ticket | Titolo | Blocked by | File |
+|--------|--------|------------|------|
+| EDIT-01 #171 | scaffolding /edit isolato | — | `edit.html`, `vite.config.js`, `src/edit.js` |
+| EDIT-02 #172 | GPX drag + worldToCoord + rebuild debounce | 01 | `terrain-manager.js:80`, `src/edit.js` gpxHandles |
+| EDIT-03 #173 | tabella GPX + multi-selezione Shift+click + drag gruppo | 02 | `src/edit.js` renderGpxTable |
+| EDIT-04 #174 | checkpoint drag + tabella km/lat/lon/ele | 02 | `src/edit.js` checkpointGroup |
+| EDIT-05 #175 | arco TransformControls + clamp terreno | 01 | `src/edit.js` TransformControls |
+| EDIT-06 #176 | alberi InstancedMesh pick/move/delete/add | 01 | `src/edit.js` treesMesh |
+| EDIT-07 #177 | history undo/redo + giir_edit_v1 + Esporta GPX/JSON | 03,04,05,06 | `src/edit/history.js`, `src/edit.js` capture/restore |
+| EDIT-08 #178 | polish & isolamento + WAYFINDER update | 07 | `WAYFINDER_PROTOCOL.md` |
+
+Persistenza: `localStorage giir_edit_v1` auto-save 3s, `Esporta` scarica `giir-di-mont-32-km.gpx` + `checkpoints.json` + `arch.json` + `trees.json` (copia manuale in `public/data/` + git commit). Guard arco definitivo: confirm prima di sovrascrivere 120°/-25°. Isolamento: no `BroadcastChannel`, no `ndi-streamer`, no scrittura `giir_race_data_v2`.
 
 > **Rule while this map is live:** One ticket at a time. Finish → verify → commit → PR → merge → next. No parallel tickets touching the same file. See `wayfinder/SKILL.md:105` `never resolve more than one ticket per session`.
 
