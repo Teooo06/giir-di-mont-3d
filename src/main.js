@@ -388,7 +388,6 @@ function add3DCheckpoint(id, name, km, worldPos, isStart = false, isFinish = fal
 function rebuildTrack3D() {
   if (rawTrackPoints.length < 2) return;
 
-  // PROG-SMOOTH: Chaikin corner-cutting subdivision for smoother paths
   function chaikinSmooth(points, iterations = 2) {
     if (iterations <= 0 || points.length < 2) return points.map(v => v.clone());
     let result = points.map(v => v.clone());
@@ -407,7 +406,12 @@ function rebuildTrack3D() {
     return result;
   }
 
-  const rawWorldPoints = worldPoints;
+  const rawWorldPoints = rawTrackPoints.map(p => {
+    const v = terrainManager.coordToWorld(p.lat, p.lon, p.ele);
+    const ground = terrainManager.getElevationAtWorld(v.x, v.z);
+    v.y = Math.max(v.y, ground + 1.8);
+    return v;
+  });
   const useSmooth = settingsManager.settings.pathSmoothing !== false;
   const worldPoints = useSmooth ? chaikinSmooth(rawWorldPoints, 2) : rawWorldPoints;
   cachedWorldPoints = worldPoints.map(v => v.clone());
