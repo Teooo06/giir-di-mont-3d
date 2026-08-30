@@ -60,23 +60,33 @@ function sendController(payload) {
 }
 
 function parsePacket(buf) {
-  // DJI RC-N1 38-byte packet, stick raw 364..1684 center 1024
-  // Offsets da reverse engineering (pverhaert/miniontoby): bytes 10-11 LX, 12-13 LY, 14-15 RX, 16-17 RY (little endian 16-bit)
-  // Alcune varianti usano 10:LX 12:LY 14:RX 16:RY, altre 12:RY etc. Proviamo entrambe e logghiamo
   if (buf.length < 38) return null;
-  if (buf[0] !== 0x55) return null; // header
-  const read16 = (off) => buf.readUInt16LE(off);
-  // Prova layout A
-  let lx = read16(10), ly = read16(12), rx = read16(14), ry = read16(16);
-  // Se i valori sono fuori range 300-1800, prova layout B (shift)
+  if (buf[0] !== 0x55) return null;
   const inRange = (v) => v >= 300 && v <= 1800;
-  if (![lx, ly, rx, ry].every(inRange)) {
-    // layout B: offset 12,14,16,18
-    lx = read16(12); ly = read16(14); rx = read16(16); ry = read16(18);
-    if (![lx, ly, rx, ry].every(inRange)) return null;
-  }
   const norm = (v) => Math.max(-1, Math.min(1, (v - 1024) / 660));
-  return { lx: norm(lx), ly: norm(ly), rx: norm(rx), ry: norm(ry), raw: { lx, ly, rx, ry } };
+  // Layout corretto da Python pverhaert: rx=13, ry=16, ly=19, lx=22 (little endian)
+  const tryParse = (offsets) => {
+    const vals = offsets.map(off => buf.readUInt16LE(off));
+    if (vals.every(inRange)) {
+      const [rx, ry, ly, lx] = vals;
+      return { lx: norm(lx), ly: norm(ly), rx: norm(rx), ry: norm(ry), raw: { lx, ly, rx, ry } };
+    }
+    return null;
+  };
+  // Prova layout corretto
+  let res = tryParse([13, 16, 19, 22]);
+  if (res) return res;
+  // Fallback: prova altri offset noti
+  const fallbacks = [[10,12,14,16],[12,14,16,18],[13,16,19,22]];
+  for (const offs of fallbacks) {
+    const vals = offs.map(o => buf.readUInt16LE(o));
+    if (vals.every(inRange)) {
+      const [a,b,c,d] = vals;
+      // mappa a seconda di layout
+      return { lx: norm(a), ly: norm(b), rx: norm(c), ry: norm(d), raw: { lx:a, ly:b, rx:c, ry:d } };
+    }
+  }
+  return null;
 }
 
 async function openSerial(path) {
@@ -137,17 +147,16 @@ async function openSerial(path) {
       setTimeout(() => {
         if (packetCount === 0) {
           log(`Nessun pacchetto @${baud} dopo 3s, provo prossimo baud...`);
-          try { serial.close(); } catch {}
-          // try next baud via recursion
+          try { if (serial && serial.isOpen) serial.close(); } catch {}
           openSerial(path).catch(() => {});
         } else {
           log(`Baud ${baud} OK, ${packetCount} pacchetti ricevuti`);
         }
       }, 3000);
-      return; // successo, esci dal loop tryBauds
+      return;
     } catch (e) {
       log(`Fallito @${baud}: ${e.message}`);
-      try { serial?.close(); } catch {}
+      try { if (serial && serial.isOpen) serial.close(); } catch {}
       continue;
     }
   }
