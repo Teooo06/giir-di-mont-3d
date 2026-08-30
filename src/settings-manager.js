@@ -19,7 +19,11 @@ export class SettingsManager {
       tubeSegments: 600, // PERF-07: 400/600/800
       ndiMsaa: 2, // PERF-07: 0/2/4
       shadowsEnabled: true,
-      preserveBuffer: false
+      preserveBuffer: false,
+      showProgressMarker: true, // PROG-07: visible progress cursor on track
+      trackTravelColor: '#ffffff', // PROG-07: traveled track color
+      trackRemainingColor: '#2a2e34', // PROG-07: remaining track color
+      gpxSource: '/data/giir-di-mont-32-km.gpx'
     };
 
     this.settings = { ...this.defaultSettings };

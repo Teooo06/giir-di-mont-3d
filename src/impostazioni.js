@@ -413,6 +413,60 @@ function initSettingsUI() {
       syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
     });
   }
+
+  // PROG-07: Percorso & Marker
+  const chkProgress = document.querySelector('#chk-progress-marker');
+  if (chkProgress) {
+    chkProgress.checked = s.showProgressMarker;
+    chkProgress.addEventListener('change', (e) => {
+      settingsManager.update({ showProgressMarker: e.target.checked });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+  const travelColor = document.querySelector('#track-travel-color');
+  const remainingColor = document.querySelector('#track-remaining-color');
+  if (travelColor) {
+    travelColor.value = s.trackTravelColor;
+    travelColor.addEventListener('input', (e) => {
+      settingsManager.update({ trackTravelColor: e.target.value });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+  if (remainingColor) {
+    remainingColor.value = s.trackRemainingColor;
+    remainingColor.addEventListener('input', (e) => {
+      settingsManager.update({ trackRemainingColor: e.target.value });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+  // GPX file upload
+  const gpxInput = document.querySelector('#gpx-input');
+  const gpxSource = document.querySelector('#gpx-source');
+  if (gpxSource) {
+    gpxSource.value = s.gpxSource || '/data/giir-di-mont-32-km.gpx';
+    gpxSource.addEventListener('change', (e) => {
+      settingsManager.update({ gpxSource: e.target.value });
+    });
+  }
+  if (gpxInput) {
+    gpxInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const xml = new DOMParser().parseFromString(text, 'application/xml');
+        if (xml.querySelector('parsererror')) { alert('GPX non valido'); return; }
+        const trkpts = [...xml.querySelectorAll('trkpt')];
+        if (trkpts.length < 2) { alert('Nessun punto trkpt nel GPX'); return; }
+        const points = trkpts.map(n => ({ lat: Number(n.getAttribute('lat')), lon: Number(n.getAttribute('lon')), ele: Number(n.querySelector('ele')?.textContent || 960) }));
+        if (points.some(p => !Number.isFinite(p.lat) || !Number.isFinite(p.lon))) { alert('Coordinate GPX non valide'); return; }
+        settingsManager.update({ gpxSource: file.name });
+        syncChannel.postMessage({ type: 'GPX_UPDATED', points });
+        alert(`GPX caricato: ${points.length} punti`);
+      } catch (err) { alert(`Errore GPX: ${err.message}`); }
+      e.target.value = '';
+    });
+  }
 }
 
 // Inizializza
