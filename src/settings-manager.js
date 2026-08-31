@@ -32,7 +32,9 @@ export class SettingsManager {
         controllerRoll: 0.4,
         controllerTilt: 0.4,
         controllerZoom: 0.4,
-        showMiniMap: true
+        showMiniMap: true,
+        fogEnabled: true, // YOU-19: valley mist toggle — ponytail: FogExp2 stdlib, no custom shader yet
+        fogDensity: 0.00068 // YOU-19: density knob — ponytail: 0.0002 light .. 0.0015 dense, 0.00068 balanced
     };
 
     this.settings = { ...this.defaultSettings };
