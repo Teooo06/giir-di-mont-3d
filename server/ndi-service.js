@@ -114,8 +114,9 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url === '/status') {
-    const connections = ndiSender && typeof ndiSender.connections === 'function' ? ndiSender.connections() : 0;
-    const tally = ndiSender && typeof ndiSender.tally === 'function' ? ndiSender.tally() : { onProgram: false, onPreview: false };
+    let connections = 0, tally = { onProgram: false, onPreview: false };
+    try { connections = ndiSender && typeof ndiSender.connections === 'function' ? ndiSender.connections() : 0; } catch {}
+    try { tally = ndiSender && typeof ndiSender.tally === 'function' ? ndiSender.tally() : tally; } catch {}
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       sourceName: ndiSender ? ndiSender.sourceName() : NDI_SOURCE_NAME,
@@ -142,8 +143,9 @@ wss.on('connection', (ws) => {
 
   const sendStatus = () => {
     if (ws.readyState !== ws.OPEN) return;
-    const connections = ndiSender && typeof ndiSender.connections === 'function' ? ndiSender.connections() : 0;
-    const tally = ndiSender && typeof ndiSender.tally === 'function' ? ndiSender.tally() : { onProgram: false, onPreview: false };
+    let connections = 0, tally = { onProgram: false, onPreview: false };
+    try { connections = ndiSender && typeof ndiSender.connections === 'function' ? ndiSender.connections() : 0; } catch {}
+    try { tally = ndiSender && typeof ndiSender.tally === 'function' ? ndiSender.tally() : tally; } catch {}
     ws.send(JSON.stringify({
       type: 'ndi_status',
       sourceName: ndiSender ? ndiSender.sourceName() : NDI_SOURCE_NAME,

@@ -96,15 +96,18 @@ function parsePacket(buf) {
   return null;
 }
 
+let opening = false;
 async function openSerial(path) {
+  if (opening) return;
+  opening = true;
   const tryBauds = [921600, 115200, 57600];
   for (const baud of tryBauds) {
     try {
       log(`Apertura seriale ${path} @${baud}...`);
+      if (serial && serial.isOpen) { try { serial.close(); } catch {} await new Promise(r => setTimeout(r, 300)); }
       serial = new SerialPort({ path, baudRate: baud, autoOpen: false });
       await new Promise((res, rej) => serial.open(err => err ? rej(err) : res()));
       log(`Seriale aperta @${baud}, invio handshake (3x)...`);
-      // Invia handshake 3 volte con delay per robustezza
       for (let i = 0; i < 3; i++) {
         serial.write(HANDSHAKE);
         await new Promise(r => setTimeout(r, 100));
@@ -202,18 +205,23 @@ async function openSerial(path) {
         if (packetCount === 0) {
           log(`Nessun pacchetto @${baud} dopo 3s, provo prossimo baud...`);
           try { if (serial && serial.isOpen) serial.close(); } catch {}
+          opening = false;
           openSerial(path).catch(() => {});
         } else {
           log(`Baud ${baud} OK, ${packetCount} pacchetti ricevuti`);
+          opening = false;
         }
       }, 3000);
+      opening = false;
       return;
     } catch (e) {
       log(`Fallito @${baud}: ${e.message}`);
       try { if (serial && serial.isOpen) serial.close(); } catch {}
+      opening = false;
       continue;
     }
   }
+  opening = false;
   log(`Tutti i baud falliti per ${path}`);
   setTimeout(() => findAndOpen(), 3000);
 }
