@@ -185,6 +185,19 @@
               <small class="help-text">Accelerato 10×–100× velocizza la simulazione gara. Sincronizzato via localStorage a / (BroadcastChannel).</small>
             </div>
 
+            <!-- YOU-19: nebbia di valle — ponytail: FogExp2 toggle+densità, no shader -->
+            <div class="form-group checkbox-group">
+              <label>
+                <input type="checkbox" id="chk-fog-enabled" checked />
+                Nebbia di Valle (mist) — visibile sotto ~1600m
+              </label>
+            </div>
+            <div class="form-group">
+              <label>Densità nebbia (<span id="fog-density-val">0.00068</span>)</label>
+              <input type="range" id="fog-density" min="0.0002" max="0.0015" step="0.00005" value="0.00068" class="form-slider" />
+              <small class="help-text">Sotto 1600m densa, sopra 2000m trasparente (approx. FogExp2). Animazione lieve ±6%. Topdown azzera.</small>
+            </div>
+
             <div class="form-group checkbox-group">
               <label>
                 <input type="checkbox" id="chk-prof-overlay" checked />

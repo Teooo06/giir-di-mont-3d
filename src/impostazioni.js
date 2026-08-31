@@ -410,6 +410,30 @@ function initSettingsUI() {
     if (customBox) customBox.style.display = 'block';
   });
 
+  // YOU-19: Nebbia di valle — ponytail: FogExp2 toggle+densità
+  const chkFog = document.querySelector('#chk-fog-enabled');
+  const fogDensity = document.querySelector('#fog-density');
+  const fogDensityVal = document.querySelector('#fog-density-val');
+  if (chkFog) {
+    chkFog.checked = s.fogEnabled !== false;
+    if (fogDensity) fogDensity.disabled = !chkFog.checked;
+    chkFog.addEventListener('change', (e) => {
+      settingsManager.update({ fogEnabled: e.target.checked });
+      if (fogDensity) fogDensity.disabled = !e.target.checked;
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+  if (fogDensity) {
+    fogDensity.value = s.fogDensity ?? 0.00068;
+    if (fogDensityVal) fogDensityVal.textContent = parseFloat(fogDensity.value).toFixed(5);
+    fogDensity.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value);
+      if (fogDensityVal) fogDensityVal.textContent = v.toFixed(5);
+      settingsManager.update({ fogDensity: v });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+
   // Profilo Altimetrico
   const chkProf = document.querySelector('#chk-prof-overlay');
   if (chkProf) {

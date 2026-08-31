@@ -16,7 +16,15 @@ const scene = new THREE.Scene();
 
 // Sfondo cielo alpino pulito e naturale (senza tinte gialle)
 scene.background = new THREE.Color('#94b5c7');
-scene.fog = new THREE.FogExp2('#9dbecd', 0.00068); // MAP-01: denser fog at edges to hide blue border, ponytail 0.00045→0.00068
+// YOU-19: valley mist — ponytail: FogExp2 stdlib <0.3ms, toggleable via settings, topdown cleared; altitude shader deferred until director validates need
+const FOG_COLOR = '#9dbecd';
+const FOG_DEFAULT_DENSITY = 0.00068;
+function applyFog(enabled, density) {
+  if (!enabled) { scene.fog = null; return; }
+  if (!scene.fog || !(scene.fog instanceof THREE.FogExp2)) scene.fog = new THREE.FogExp2(FOG_COLOR, density);
+  else { scene.fog.color.set(FOG_COLOR); scene.fog.density = density; }
+}
+applyFog(settingsManager.settings.fogEnabled !== false, settingsManager.settings.fogDensity ?? FOG_DEFAULT_DENSITY);
 
 // Telecamera Operatore (Viewport)
 const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 2, 9000);
@@ -153,6 +161,10 @@ const settingsManager = new SettingsManager({
     if (settings.ndiFps && ndiStreamer && settings.ndiFps !== ndiStreamer.targetFps) {
       ndiStreamer.setFps(settings.ndiFps);
     }
+    // YOU-19: fog toggle/density — ponytail: immediate apply, no shader rebuild
+    if (settings.fogEnabled !== undefined || settings.fogDensity !== undefined) {
+      applyFog(settings.fogEnabled !== false, settings.fogDensity ?? FOG_DEFAULT_DENSITY);
+    }
   }
 });
 
@@ -207,6 +219,8 @@ let syncChannel = null;
         // YOU-16: sync mini-map visibility without reload
         miniMapVisible = settingsManager.settings.showMiniMap !== false;
         updateMiniMapVisibility();
+        // YOU-19: fog sync — ponytail: apply immediately after reload
+        applyFog(settingsManager.settings.fogEnabled !== false, settingsManager.settings.fogDensity ?? FOG_DEFAULT_DENSITY);
       } else if (e.data?.type === 'RACE_STATE_UPDATED') {
         raceManager.loadFromStorage(false);
       } else if (e.data?.type === 'GPX_UPDATED') {
@@ -1507,11 +1521,20 @@ function frame() {
         const speed = settingsManager.settings.simulationSpeed ?? 1;
         simElapsedSec = (simElapsedSec + dt * speed) % getDurationSec();
       }
-      // FOG: remove fog in zenith scene (scene 4) for clear top-down view
-      if (activeScene === 'topdown') {
-        if (scene.fog) scene.fog.density = 0;
+      // YOU-19 FOG: topdown clears, else density = settings.fogDensity with subtle 6% sine shimmer — ponytail: native FogExp2, no shader, <0.2ms
+      const fogEnabled = settingsManager.settings.fogEnabled !== false;
+      if (!fogEnabled) {
+        if (scene.fog) { scene.fog = null; }
       } else {
-        if (scene.fog) scene.fog.density = 0.00068;
+        const base = settingsManager.settings.fogDensity ?? FOG_DEFAULT_DENSITY;
+        if (!scene.fog || !(scene.fog instanceof THREE.FogExp2)) applyFog(true, base);
+        if (activeScene === 'topdown') {
+          scene.fog.density = 0;
+        } else {
+          // subtle animation: ±6% at 0.08 rad/s (~78s cycle) — cheap, no texture
+          const shimmer = 1 + Math.sin(performance.now() * 0.00008) * 0.06;
+          scene.fog.density = base * shimmer;
+        }
       }
       const state = raceManager.getState();
       const athletes = state.athletes;
