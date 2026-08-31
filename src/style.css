@@ -9,16 +9,58 @@
   --card-bg: rgba(14, 20, 23, 0.92);
   --border-subtle: rgba(255, 255, 255, 0.12);
   --font-primary: 'Barlow Condensed', sans-serif;
+  --bg-topbar: #1a262a;
+  --border-topbar: #2a3a3f;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
   font-family: var(--font-primary);
   color: #f7f5ec;
   background: var(--bg-main);
   user-select: none;
 }
 
+/* Hallmark a11y: focus visibility — ponytail: 1 rule covers all HUD interactive, WCAG 2.4.7 */
+:focus-visible { outline: 2px solid var(--accent-neon); outline-offset: 2px; }
+.nav-tab:focus-visible,
+.scene-btn:focus-visible,
+.ndi-action-btn:focus-visible,
+.choice-btn:focus-visible,
+.btn:focus-visible,
+.preset-btn:focus-visible,
+.color-dot:focus-visible {
+  outline: 2px solid var(--accent-neon);
+  outline-offset: 2px;
+}
+
 * { box-sizing: border-box; }
 body { margin: 0; overflow: hidden; }
 #world { position: fixed; inset: 0; width: 100%; height: 100%; outline: 0; }
 .hud { position: fixed; z-index: 10; pointer-events: auto; }
+
+/* Hallmark fix #1: tokenized top-bar — ponytail: replaces inline hex + system-ui in index.html:18 */
+.top-bar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+.btn-topbar {
+  background: var(--bg-topbar);
+  color: var(--accent-neon);
+  border: 1px solid var(--border-topbar);
+  padding: 8px 12px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-lg, 8px);
+  font: 600 12px var(--font-primary);
+  text-decoration: none;
+  cursor: pointer;
+}
 
 /* Brand */
 .brand {
@@ -60,10 +102,13 @@ body { margin: 0; overflow: hidden; }
   background: transparent;
   border: 0;
   color: #aeb6ae;
-  padding: 8px 16px;
+  padding: 10px 16px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   font: 700 13px var(--font-primary);
   letter-spacing: .06em;
-  border-radius: 6px;
+  border-radius: var(--radius-md, 6px);
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
@@ -87,7 +132,7 @@ body { margin: 0; overflow: hidden; }
   background: var(--card-bg);
   border: 1px solid var(--border-subtle);
   padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg, 8px);
   backdrop-filter: blur(12px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
@@ -181,7 +226,7 @@ body { margin: 0; overflow: hidden; }
   padding: 16px;
   background: var(--card-bg);
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  border-radius: var(--radius-lg, 8px);
   backdrop-filter: blur(14px);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   display: none;
@@ -210,8 +255,9 @@ body { margin: 0; overflow: hidden; }
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.06);
   color: inherit;
-  padding: 9px 12px;
-  border-radius: 5px;
+  padding: 12px 12px;
+  min-height: 44px;
+  border-radius: var(--radius-md, 5px);
   text-align: left;
   font: 600 14px var(--font-primary);
   letter-spacing: .04em;
@@ -390,11 +436,14 @@ body { margin: 0; overflow: hidden; }
   gap: 8px;
 }
 .color-dot {
-  width: 28px;
-  height: 28px;
+  /* Hallmark touch target 44px — ponytail: visual 28px via content-box + 8px transparent hit area = 44px */
+  width: 44px;
+  height: 44px;
+  border: 8px solid transparent;
+  background-clip: content-box;
+  box-sizing: border-box;
   border-radius: 50%;
   cursor: pointer;
-  border: 2px solid transparent;
   transition: transform 0.15s ease;
 }
 .color-dot:hover { transform: scale(1.15); }
