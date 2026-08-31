@@ -434,6 +434,16 @@ function initSettingsUI() {
     });
   }
 
+  // YOU-20: God Rays toggle — ponytail: one bool, BroadcastChannel
+  const chkGod = document.querySelector('#chk-god-rays');
+  if (chkGod) {
+    chkGod.checked = s.godRaysEnabled !== false;
+    chkGod.addEventListener('change', (e) => {
+      settingsManager.update({ godRaysEnabled: e.target.checked });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
+
   // Profilo Altimetrico
   const chkProf = document.querySelector('#chk-prof-overlay');
   if (chkProf) {
