@@ -198,14 +198,18 @@ const ndiStreamer = new NdiStreamer({
 });
 
 // Canale di sincronizzazione istantanea con /impostazioni
- try {
-   const syncChannel = new BroadcastChannel('giir_sync_channel');
-   syncChannel.onmessage = (e) => {
-     if (e.data?.type === 'SETTINGS_UPDATED') {
-       settingsManager.loadSettings();
-     } else if (e.data?.type === 'RACE_STATE_UPDATED') {
-       raceManager.loadFromStorage(false);
-     } else if (e.data?.type === 'GPX_UPDATED') {
+let syncChannel = null;
+  try {
+    syncChannel = new BroadcastChannel('giir_sync_channel');
+    syncChannel.onmessage = (e) => {
+      if (e.data?.type === 'SETTINGS_UPDATED') {
+        settingsManager.loadSettings();
+        // YOU-16: sync mini-map visibility without reload
+        miniMapVisible = settingsManager.settings.showMiniMap !== false;
+        updateMiniMapVisibility();
+      } else if (e.data?.type === 'RACE_STATE_UPDATED') {
+        raceManager.loadFromStorage(false);
+      } else if (e.data?.type === 'GPX_UPDATED') {
        const pts = e.data.points;
        if (pts && pts.length >= 2) {
          const gpxText = `<?xml version="1.0" encoding="UTF-8"?><gpx><trk><name>Custom GPX</name><trkseg>${pts.map(p => `<trkpt lat="${p.lat}" lon="${p.lon}"><ele>${p.ele}</ele></trkpt>`).join('')}</trkseg></trk></gpx>`;
@@ -283,6 +287,115 @@ let progFrameCounter = 0;
 let labels = [];
 const checkpointGroup = new THREE.Group();
 scene.add(checkpointGroup);
+
+// YOU-16: mini-map PIP Canvas2D — ponytail: single canvas, no ortho cam/renderTarget/extra scene, ~0.3ms 2D draw
+let miniMapCanvas = null;
+let miniMapCtx = null;
+let miniMapWrap = null;
+let miniMapBbox = null;
+let miniMapVisible = settingsManager.settings.showMiniMap !== false;
+let miniMapFrameC = 0;
+function initMiniMap() {
+  miniMapCanvas = document.querySelector('#mini-map');
+  miniMapWrap = document.querySelector('#mini-map-wrap');
+  if (!miniMapCanvas || !miniMapWrap) return;
+  miniMapCtx = miniMapCanvas.getContext('2d');
+  updateMiniMapVisibility();
+}
+function updateMiniMapVisibility() {
+  if (!miniMapWrap) return;
+  miniMapWrap.classList.toggle('visible', !!miniMapVisible);
+}
+function setMiniMapVisible(v) {
+  miniMapVisible = !!v;
+  updateMiniMapVisibility();
+  try { settingsManager.update({ showMiniMap: miniMapVisible }); syncChannel?.postMessage?.({ type: 'SETTINGS_UPDATED' }); } catch {}
+}
+function computeMiniMapBbox() {
+  if (!cachedWorldPoints.length) return null;
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const p of cachedWorldPoints) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z; }
+  const pad = 30;
+  minX -= pad; maxX += pad; minZ -= pad; maxZ += pad;
+  const w = maxX - minX, h = maxZ - minZ;
+  if (w > h) { const d = (w - h) / 2; minZ -= d; maxZ += d; } else { const d = (h - w) / 2; minX -= d; maxX += d; }
+  miniMapBbox = { minX, maxX, minZ, maxZ };
+  return miniMapBbox;
+}
+function worldToMini(x, z, W, H, pad) {
+  const b = miniMapBbox; if (!b) return [0, 0];
+  const nx = (x - b.minX) / (b.maxX - b.minX);
+  const nz = (z - b.minZ) / (b.maxZ - b.minZ);
+  const cx = pad + nx * (W - pad * 2);
+  const cy = pad + (1 - nz) * (H - pad * 2);
+  return [cx, cy];
+}
+function drawMiniMap() {
+  if (!miniMapCtx || !miniMapVisible || !cachedWorldPoints.length) return;
+  if (!miniMapBbox) computeMiniMapBbox();
+  if (!miniMapBbox) return;
+  const ctx = miniMapCtx;
+  const W = miniMapCanvas.width, H = miniMapCanvas.height;
+  const pad = 18;
+  ctx.clearRect(0, 0, W, H);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // full track gray
+  ctx.beginPath();
+  for (let i = 0; i < cachedWorldPoints.length; i++) {
+    const p = cachedWorldPoints[i];
+    const [cx, cy] = worldToMini(p.x, p.z, W, H, pad);
+    if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+  }
+  ctx.strokeStyle = 'rgba(180,190,190,0.55)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  // traveled overlay up to leader
+  const leader = raceManager.getSelectedAthlete();
+  const leaderRatio = leader ? Math.min(0.999, Math.max(0.001, leader.km / raceManager.totalKm)) : 0;
+  const tidx = Math.floor(cachedWorldPoints.length * leaderRatio);
+  if (tidx > 1) {
+    ctx.beginPath();
+    for (let i = 0; i <= tidx; i++) {
+      const p = cachedWorldPoints[i];
+      const [cx, cy] = worldToMini(p.x, p.z, W, H, pad);
+      if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+    }
+    ctx.strokeStyle = settingsManager.settings.themeColor || '#dff654';
+    ctx.lineWidth = 4;
+    ctx.globalAlpha = 0.95;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  // checkpoints
+  for (const cp of raceManager.checkpoints) {
+    const ratio = Math.min(0.999, Math.max(0.001, cp.km / raceManager.totalKm));
+    const idx = Math.floor(ratio * (cachedWorldPoints.length - 1));
+    const pt = cachedWorldPoints[idx] || cachedWorldPoints[0];
+    if (!pt) continue;
+    const [cx, cy] = worldToMini(pt.x, pt.z, W, H, pad);
+    ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+    ctx.fillStyle = cp.isStart || cp.isFinish ? '#ffffff' : '#111815';
+    ctx.fill(); ctx.strokeStyle = settingsManager.settings.themeColor; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fillStyle = '#dff654'; ctx.fill();
+  }
+  // athletes
+  for (const ath of raceManager.getState().athletes) {
+    const ratio = Math.min(0.999, Math.max(0.001, ath.km / raceManager.totalKm));
+    const idx = Math.floor(ratio * (cachedWorldPoints.length - 1));
+    const pt = cachedWorldPoints[idx];
+    if (!pt) continue;
+    const [cx, cy] = worldToMini(pt.x, pt.z, W, H, pad);
+    ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+    ctx.fillStyle = ath.color || '#ff3b30'; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#111'; ctx.font = '700 10px Barlow Condensed, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(ath.bib), cx, cy + 0.5);
+  }
+  // north arrow
+  ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '700 11px monospace'; ctx.textAlign = 'left'; ctx.fillText('N', 10, 18);
+  ctx.beginPath(); ctx.moveTo(12, 22); ctx.lineTo(8, 30); ctx.lineTo(16, 30); ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+}
 let archGroup = null; // P8 arco gonfiabile rosso Bocchetta Larec 14.5km — must stay
 
 const athleteMeshes = new Map();
@@ -556,6 +669,9 @@ function rebuildTrack3D() {
   if (elevationProfile && typeof elevationProfile.setTrackData === 'function') {
     elevationProfile.setTrackData(rawTrackPoints, raceManager.checkpoints);
   }
+  // YOU-16: recompute bbox for mini-map
+  miniMapBbox = null;
+  if (cachedWorldPoints.length) computeMiniMapBbox();
 }
 
 // PROG-02: rainbow neon track — single full tube + vertex colors, no seam (Closes #146)
@@ -784,11 +900,17 @@ addEventListener('keydown', (e) => {
   if (e.key === '2') setScene('runner');
   if (e.key === '3') setScene('checkpoint');
   if (e.key === '5' || e.key === '4') setScene('topdown');
-  // M key: toggle topdown zoom in/out (Closes #148)
-  if (e.key.toLowerCase() === 'm' && activeScene === 'topdown') {
-    topdownZoomed = !topdownZoomed;
-    const zp = getSceneParams('topdown');
-    if (zp) { camTween = { startPos: camera.position.clone(), endPos: zp.pos.clone(), startTarget: controls.target.clone(), endTarget: zp.target.clone(), elapsed: 0, duration: 0.8 }; }
+  // M key: YOU-16 mini-map toggle — ponytail: M=mini-map except topdown where M=zoom, Shift+M=mini-map
+  if (e.key.toLowerCase() === 'm') {
+    if (activeScene === 'topdown') {
+      if (e.shiftKey) { setMiniMapVisible(!miniMapVisible); return; }
+      topdownZoomed = !topdownZoomed;
+      const zp = getSceneParams('topdown');
+      if (zp) { camTween = { startPos: camera.position.clone(), endPos: zp.pos.clone(), startTarget: controls.target.clone(), endTarget: zp.target.clone(), elapsed: 0, duration: 0.8 }; }
+      return;
+    }
+    setMiniMapVisible(!miniMapVisible);
+    return;
   }
   if (e.key === ' ') {
     isAutoPlaying = !isAutoPlaying;
@@ -1114,6 +1236,7 @@ function updateLabels() {
 renderAthletesList();
 renderSplitsEditor();
 updateRiderCard();
+initMiniMap();
 
 // ----------------------------------------------------
 // 9. RENDER LOOP PRINCIPALE
@@ -1542,6 +1665,9 @@ function frame() {
   }
   programCamera.aspect = 16 / 9;
   programCamera.updateProjectionMatrix();
+
+  // YOU-16: mini-map draw throttled 20fps (every 3 frames @60) — ponytail: Canvas2D ~0.3ms
+  if (++miniMapFrameC % 3 === 0) drawMiniMap();
 
   renderer.render(scene, camera);
   updateLabels();

@@ -31,7 +31,8 @@ export class SettingsManager {
         controllerPitch: 0.4,
         controllerRoll: 0.4,
         controllerTilt: 0.4,
-        controllerZoom: 0.4
+        controllerZoom: 0.4,
+        showMiniMap: true
     };
 
     this.settings = { ...this.defaultSettings };
