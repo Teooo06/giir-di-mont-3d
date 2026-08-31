@@ -34,7 +34,9 @@ export class SettingsManager {
         controllerZoom: 0.4,
         showMiniMap: true,
         fogEnabled: true, // YOU-19: valley mist toggle — ponytail: FogExp2 stdlib, no custom shader yet
-        fogDensity: 0.00068 // YOU-19: density knob — ponytail: 0.0002 light .. 0.0015 dense, 0.00068 balanced
+        fogDensity: 0.00068, // YOU-19: density knob — ponytail: 0.0002 light .. 0.0015 dense, 0.00068 balanced
+        godRaysEnabled: true // YOU-20: god rays toggle — ponytail: mesh shafts, additive, no EffectComposer
+
     };
 
     this.settings = { ...this.defaultSettings };

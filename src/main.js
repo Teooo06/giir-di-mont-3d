@@ -165,6 +165,10 @@ const settingsManager = new SettingsManager({
     if (settings.fogEnabled !== undefined || settings.fogDensity !== undefined) {
       applyFog(settings.fogEnabled !== false, settings.fogDensity ?? FOG_DEFAULT_DENSITY);
     }
+    // YOU-20: god rays toggle — ponytail: visibility only, no rebuild
+    if (settings.godRaysEnabled !== undefined) {
+      if (godRaysGroup) godRaysGroup.visible = settings.godRaysEnabled !== false;
+    }
   }
 });
 
@@ -221,6 +225,8 @@ let syncChannel = null;
         updateMiniMapVisibility();
         // YOU-19: fog sync — ponytail: apply immediately after reload
         applyFog(settingsManager.settings.fogEnabled !== false, settingsManager.settings.fogDensity ?? FOG_DEFAULT_DENSITY);
+        // YOU-20: god rays sync
+        if (godRaysGroup) godRaysGroup.visible = settingsManager.settings.godRaysEnabled !== false;
       } else if (e.data?.type === 'RACE_STATE_UPDATED') {
         raceManager.loadFromStorage(false);
       } else if (e.data?.type === 'GPX_UPDATED') {
@@ -354,6 +360,54 @@ function generateLandmarks() {
     if(ele>1750) { i--; continue; }
     landmarkGroup.add(makeBaita(p, 0.8+Math.random()*0.4));
   }
+}
+
+// YOU-20: god rays — ponytail: mesh shafts additive, no EffectComposer; upgrade to post-process radial blur if director needs sun-screen occlusion
+let godRaysGroup = null;
+function makeRayTexture() {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 512;
+  const ctx = c.getContext('2d');
+  const g0 = ctx.createLinearGradient(0, 0, 0, 512);
+  g0.addColorStop(0, 'rgba(255,248,208,0.55)'); g0.addColorStop(0.45, 'rgba(255,248,208,0.25)'); g0.addColorStop(1, 'rgba(255,248,208,0)');
+  ctx.fillStyle = g0; ctx.fillRect(0, 0, 128, 512);
+  ctx.globalCompositeOperation = 'destination-in';
+  const hg = ctx.createLinearGradient(0, 0, 128, 0);
+  hg.addColorStop(0, 'rgba(0,0,0,0)'); hg.addColorStop(0.15, 'rgba(0,0,0,1)'); hg.addColorStop(0.85, 'rgba(0,0,0,1)'); hg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = hg; ctx.fillRect(0, 0, 128, 512);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+}
+let _rayTex = null;
+function generateGodRays() {
+  if (godRaysGroup) { scene.remove(godRaysGroup); godRaysGroup.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material?.map) o.material.map.dispose(); }); }
+  godRaysGroup = new THREE.Group();
+  if (!routeCurve || !cachedWorldPoints.length) { scene.add(godRaysGroup); return; }
+  _rayTex = _rayTex || makeRayTexture();
+  const sunDir = sun.position.clone().normalize(); // direction from origin to sun
+  const shaftDir = sunDir.clone().negate(); // from sun toward valley
+  const up = new THREE.Vector3(0, 1, 0);
+  // 3 valley shafts — Chiarino 4.8km, Vegessa 9km, mid 18km — low valleys for mist
+  const ratios = [4.8/32, 9.0/32, 18/32];
+  const configs = [{ w: 70, h: 850, op: 0.13 }, { w: 55, h: 700, op: 0.11 }, { w: 85, h: 950, op: 0.09 }];
+  for (let i = 0; i < 3; i++) {
+    const ratio = ratios[i]; const cfg = configs[i];
+    const basePt = routeCurve.getPointAt(THREE.MathUtils.clamp(ratio, 0, 0.999));
+    // elevate above valley ~380 world units (~500m) so shaft stretches sun->valley
+    const midPos = basePt.clone().add(new THREE.Vector3(0, 380, 0));
+    const geo = new THREE.PlaneGeometry(cfg.w, cfg.h);
+    const mat = new THREE.MeshBasicMaterial({ map: _rayTex, transparent: true, opacity: cfg.op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(midPos);
+    // align plane's Y axis with shaftDir — ponytail: plane height along sun ray, width perpendicular
+    const q = new THREE.Quaternion().setFromUnitVectors(up, shaftDir);
+    mesh.quaternion.copy(q);
+    // slight fan spread around sunDir axis for variety
+    const spread = (i - 1) * 0.12; mesh.rotateOnAxis(shaftDir, spread);
+    // make double shaft per valley: add second plane rotated 90deg around shaftDir for volumetric cross
+    const mesh2 = mesh.clone(); mesh2.material = mat.clone(); mesh2.rotateOnAxis(shaftDir, Math.PI * 0.5);
+    godRaysGroup.add(mesh); godRaysGroup.add(mesh2);
+  }
+  godRaysGroup.visible = settingsManager.settings.godRaysEnabled !== false;
+  scene.add(godRaysGroup);
 }
 
 // ----------------------------------------------------
@@ -757,6 +811,8 @@ function rebuildTrack3D() {
   if (cachedWorldPoints.length) computeMiniMapBbox();
   // TER-3: regenerate landmarks after track ready — ponytail: Box+Cone only, <1ms
   generateLandmarks();
+  // YOU-20: god rays shafts — ponytail: 6 planes additive, ~0.4ms, no post-process
+  generateGodRays();
 }
 
 // PROG-02: rainbow neon track — single full tube + vertex colors, no seam (Closes #146)
@@ -1534,6 +1590,22 @@ function frame() {
           // subtle animation: ±6% at 0.08 rad/s (~78s cycle) — cheap, no texture
           const shimmer = 1 + Math.sin(performance.now() * 0.00008) * 0.06;
           scene.fog.density = base * shimmer;
+        }
+      }
+      // YOU-20: god rays — ponytail: mesh shafts, fog-gated, topdown hidden, ±25% opacity shimmer, ~0.4ms
+      if (godRaysGroup) {
+        const godEnabled = settingsManager.settings.godRaysEnabled !== false;
+        const fogOn = settingsManager.settings.fogEnabled !== false;
+        const hide = !godEnabled || !fogOn || activeScene === 'topdown';
+        godRaysGroup.visible = !hide;
+        if (!hide) {
+          const shimmerGod = 1 + Math.sin(performance.now() * 0.0007) * 0.25;
+          // sun direction plausibility: scale opacity slightly by sun elevation (high sun = dimmer) — ponytail: elevation gate deferred, just scale
+          // sun elevation ~51°, dim factor 0.85 at high noon, 1.2 at low <30° — keep 1.0 for now
+          godRaysGroup.children.forEach((m, i) => {
+            const baseOp = [0.13, 0.11, 0.09, 0.13, 0.11, 0.09][i % 6] ?? 0.1;
+            if (m.material) m.material.opacity = baseOp * shimmerGod;
+          });
         }
       }
       const state = raceManager.getState();
