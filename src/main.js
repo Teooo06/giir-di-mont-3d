@@ -67,6 +67,9 @@ let controllerSpeed = 1.0;
 let controllerTilt = 0; // ghiera: -1..1 per tilt camera
 // Drone libero: left Y=throttle up/down, left X=yaw, right Y=forward/back, right X=strafe, ghiera=tilt
 let droneThrottle = 0, droneYaw = 0, dronePitch = 0, droneRoll = 0;
+// inerzia drone — velocità smorzate
+let droneVelThrottle = 0, droneVelYaw = 0, droneVelPitch = 0, droneVelRoll = 0, droneVelTilt = 0;
+let droneMode = false; // D = vista drone con mirino/ghiera/stick
 try {
   const ctrlChannel = new BroadcastChannel('giir_controller_channel');
   ctrlChannel.onmessage = (e) => {
@@ -789,6 +792,19 @@ addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'c') {
     document.body.classList.toggle('clean');
   }
+  if (e.key.toLowerCase() === 'd') {
+    droneMode = !droneMode;
+    document.body.classList.toggle('drone', droneMode);
+    const cross = document.querySelector('#drone-crosshair');
+    const gimbal = document.querySelector('#drone-gimbal');
+    const sticks = document.querySelector('#drone-sticks');
+    if (cross) cross.style.display = droneMode ? 'block' : 'none';
+    if (gimbal) gimbal.style.display = droneMode ? 'block' : 'none';
+    if (sticks) sticks.style.display = droneMode ? 'flex' : 'none';
+    const modeEl = document.querySelector('#mode');
+    if (modeEl && droneMode) modeEl.textContent = 'DRONE VIEW — D per uscire';
+    else if (modeEl) modeEl.textContent = getSceneParams(activeScene)?.label || 'ORBITA LIBERA';
+  }
   if (e.key.toLowerCase() === 'f' && activeScene === 'runner' && routeCurve) {
     manualFollow = !manualFollow;
     const selectedAthlete = raceManager.getSelectedAthlete();
@@ -1196,42 +1212,48 @@ function frame() {
     const sTilt = cfg.controllerTilt ?? controllerSpeed;
     const moveBase = 6 * dt * 60;
     const rotBase = 0.45 * dt * 60;
-    if (Math.abs(droneYaw) > 0.05) {
-      const angle = -droneYaw * rotBase * 0.04 * sYaw;
+    // inerzia: velocità smorzata con lerp 0.08 accel / 0.04 decel
+    const lerpVel = (cur, tgt) => THREE.MathUtils.lerp(cur, tgt, Math.abs(tgt) > 0.01 ? 0.08 : 0.04);
+    droneVelYaw = lerpVel(droneVelYaw, droneYaw);
+    droneVelThrottle = lerpVel(droneVelThrottle, droneThrottle);
+    droneVelPitch = lerpVel(droneVelPitch, dronePitch);
+    droneVelRoll = lerpVel(droneVelRoll, droneRoll);
+    droneVelTilt = lerpVel(droneVelTilt, controllerTilt);
+    if (Math.abs(droneVelYaw) > 0.01) {
+      const angle = -droneVelYaw * rotBase * 0.04 * sYaw;
       const dir = new THREE.Vector3().subVectors(controls.target, camera.position);
       dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
       controls.target.copy(camera.position).add(dir);
     }
-    if (Math.abs(droneThrottle) > 0.05) {
+    if (Math.abs(droneVelThrottle) > 0.01) {
       const up = new THREE.Vector3(0, 1, 0);
-      const delta = up.multiplyScalar(droneThrottle * moveBase * 0.6 * sThrottle);
+      const delta = up.multiplyScalar(droneVelThrottle * moveBase * 0.6 * sThrottle);
       camera.position.add(delta);
       controls.target.add(delta);
     }
-    if (Math.abs(dronePitch) > 0.05) {
+    if (Math.abs(droneVelPitch) > 0.01) {
       const forward = new THREE.Vector3();
       camera.getWorldDirection(forward);
       forward.y = 0; forward.normalize();
-      const delta = forward.multiplyScalar(dronePitch * moveBase * 0.9 * sPitch);
+      const delta = forward.multiplyScalar(droneVelPitch * moveBase * 0.9 * sPitch);
       camera.position.add(delta);
       controls.target.add(delta);
     }
-    if (Math.abs(droneRoll) > 0.05) {
+    if (Math.abs(droneVelRoll) > 0.01) {
       const forward = new THREE.Vector3();
       camera.getWorldDirection(forward);
       const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-      const delta = right.multiplyScalar(droneRoll * moveBase * 0.9 * sRoll);
+      const delta = right.multiplyScalar(droneVelRoll * moveBase * 0.9 * sRoll);
       camera.position.add(delta);
       controls.target.add(delta);
     }
-    // ghiera tilt
-    if (Math.abs(controllerTilt) > 0.08) {
-      const cfgTilt = settingsManager.settings.controllerTilt ?? controllerSpeed;
+    // ghiera tilt con inerzia
+    if (Math.abs(droneVelTilt) > 0.01) {
       const dir = new THREE.Vector3().subVectors(controls.target, camera.position);
       const dist = dir.length();
       const axis = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
       const rotBaseTilt = 0.45 * dt * 60;
-      const angle = controllerTilt * rotBaseTilt * 0.025 * cfgTilt;
+      const angle = droneVelTilt * rotBaseTilt * 0.025 * sTilt;
       dir.applyAxisAngle(axis, angle);
       controls.target.copy(camera.position).add(dir.normalize().multiplyScalar(dist));
     }
@@ -1243,8 +1265,30 @@ function frame() {
       const newDist = THREE.MathUtils.clamp(THREE.MathUtils.lerp(curDist, controllerZoomDist, 0.12 * sZoom), 40, 1200);
       camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
     }
-    // fallback orbita per compatibilità telefono vecchio (se drone* a 0 ma orbit non zero)
-    if ((Math.abs(controllerOrbit.x) > 0.05 || Math.abs(controllerOrbit.y) > 0.05) && Math.abs(droneYaw) < 0.05 && Math.abs(droneThrottle) < 0.05) {
+    // aggiorna HUD drone (ghiera + mini stick) se in droneMode
+    if (droneMode) {
+      const gimbalPos = document.querySelector('#drone-gimbal-pos');
+      if (gimbalPos) {
+        // tilt -1..1 -> top 10% to 90%
+        const t = THREE.MathUtils.clamp((droneVelTilt + 1) * 50, 10, 90);
+        gimbalPos.style.top = `${100 - t}%`;
+      }
+      const leftDot = document.querySelector('#drone-stick-left-dot');
+      if (leftDot) {
+        const x = THREE.MathUtils.clamp(droneVelYaw * 20, -20, 20);
+        const y = THREE.MathUtils.clamp(-droneVelThrottle * 20, -20, 20);
+        leftDot.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+      }
+      const rightDot = document.querySelector('#drone-stick-right-dot');
+      if (rightDot) {
+        const x = THREE.MathUtils.clamp(droneVelRoll * 20, -20, 20);
+        const y = THREE.MathUtils.clamp(-droneVelPitch * 20, -20, 20);
+        rightDot.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+      }
+    }
+    // fallback orbita telefono vecchio
+    if ((Math.abs(controllerOrbit.x) > 0.05 || Math.abs(controllerOrbit.y) > 0.05) && Math.abs(droneVelYaw) < 0.02 && Math.abs(droneVelThrottle) < 0.02) {
+      const s = controllerSpeed;
       const spherical = new THREE.Spherical();
       spherical.setFromVector3(camera.position.clone().sub(controls.target));
       spherical.theta -= controllerOrbit.x * 0.06 * s;

@@ -13,12 +13,10 @@
         <span class="ndi-frame-label">NDI 16:9 — INQUADRATURA PROGRAM</span>
       </div>
       
-      <!-- Main Navigation Tabs -->
-      <nav class="nav-tabs hud">
-        <button class="nav-tab active" data-tab="tab-scenes">🎬 Regia Scene</button>
-        <button class="nav-tab" data-tab="tab-race">⏱️ Gara & Passaggi</button>
-        <button class="nav-tab" data-tab="tab-settings">⚙️ Personalizza Stile</button>
-      </nav>
+      <!-- Quick Scenes sempre visibili + bottone impostazioni -->
+      <div class="top-bar hud" style="position:absolute;top:12px;left:12px;display:flex;gap:8px;z-index:10">
+        <a href="/impostazioni.html" target="_blank" class="btn" style="background:#1a262a;color:#dff654;border:1px solid #2a3a3f;padding:8px 12px;border-radius:8px;font:600 12px system-ui;text-decoration:none;">⚙️ Impostazioni</a>
+      </div>
 
       <!-- NDI Status Bar -->
       <section id="ndi-bar" class="ndi-bar hud">
@@ -34,8 +32,8 @@
         <button id="ndi-toggle" class="ndi-action-btn">Disattiva NDI</button>
       </section>
 
-      <!-- TAB 1: SCENE & REGIA -->
-      <aside id="tab-scenes" class="side-panel hud tab-content active">
+      <!-- Scene Rapide sempre visibili (unico pannello usato) -->
+      <aside id="tab-scenes" class="side-panel hud" style="display:block; position:absolute; top:60px; left:12px; z-index:5;">
         <div class="panel-header">
           <span class="eyebrow">INQUADRATURE REGIA</span>
           <strong>Scene Rapide</strong>
@@ -44,100 +42,33 @@
         <button data-scene="runner" class="scene-btn"><kbd>2</kbd> Insegui Leader (Drone)</button>
         <button data-scene="checkpoint" class="scene-btn"><kbd>3</kbd> Bocchetta di Larec (2060m)</button>
         <button data-scene="topdown" class="scene-btn"><kbd>4</kbd> Vista Satellitare Zenith</button>
-
-        <div class="panel-divider"></div>
-        <div class="panel-header">
-          <span class="eyebrow">TRACCIATO 3D</span>
-          <strong id="track-status">Giir di Mont 32 km</strong>
-        </div>
-        <label class="import-btn">
-          <input id="gpx-input" type="file" accept=".gpx,application/gpx+xml,application/xml" />
-          📂 Sostituisci File GPX
-        </label>
       </aside>
 
-      <!-- TAB 2: GARA & PASSAGGI INTERMEDI -->
-      <aside id="tab-race" class="side-panel hud tab-content">
-        <div class="panel-header">
-          <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-            <div>
-              <span class="eyebrow">MONITORAGGIO GARA</span>
-              <strong>Passaggi & Atleti</strong>
-            </div>
-            <button id="btn-add-athlete" class="mini-btn" title="Aggiungi atleta">+ Atleta</button>
+      <!-- Drone HUD (attivato con D) -->
+      <div id="drone-crosshair" style="display:none; position:fixed; left:50%; top:50%; width:40px; height:40px; margin:-20px 0 0 -20px; pointer-events:none; z-index:5;">
+        <div style="position:absolute; left:50%; top:0; bottom:0; width:2px; background:rgba(223,246,84,0.9); transform:translateX(-50%); box-shadow:0 0 4px rgba(0,0,0,0.8);"></div>
+        <div style="position:absolute; top:50%; left:0; right:0; height:2px; background:rgba(223,246,84,0.9); transform:translateY(-50%); box-shadow:0 0 4px rgba(0,0,0,0.8);"></div>
+        <div style="position:absolute; left:50%; top:50%; width:10px; height:10px; border:2px solid rgba(223,246,84,0.9); border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 4px rgba(0,0,0,0.8);"></div>
+      </div>
+      <div id="drone-gimbal" style="display:none; position:fixed; right:16px; top:50%; width:8px; height:120px; background:rgba(0,0,0,0.4); border:1px solid rgba(223,246,84,0.5); border-radius:4px; transform:translateY(-50%); z-index:5;">
+        <div id="drone-gimbal-pos" style="position:absolute; left:-2px; right:-2px; height:4px; background:#dff654; border-radius:2px; top:50%; transform:translateY(-50%); box-shadow:0 0 6px #dff654;"></div>
+        <div style="position:absolute; left:50%; top:4px; width:2px; height:6px; background:rgba(255,255,255,0.3); transform:translateX(-50%);"></div>
+        <div style="position:absolute; left:50%; bottom:4px; width:2px; height:6px; background:rgba(255,255,255,0.3); transform:translateX(-50%);"></div>
+      </div>
+      <div id="drone-sticks" style="display:none; position:fixed; left:16px; bottom:80px; display:none; gap:12px; z-index:5; background:rgba(0,0,0,0.5); padding:8px; border-radius:8px; border:1px solid rgba(223,246,84,0.3);">
+        <div style="text-align:center;">
+          <div style="font:600 8px monospace; color:#dff654; margin-bottom:4px;">LEFT</div>
+          <div id="drone-stick-left" style="width:60px; height:60px; border:1px solid #333; border-radius:50%; position:relative; background:rgba(20,30,30,0.8);">
+            <div id="drone-stick-left-dot" style="position:absolute; left:50%; top:50%; width:12px; height:12px; background:#dff654; border-radius:50%; transform:translate(-50%,-50%);"></div>
           </div>
         </div>
-
-        <!-- Elenco Atleti -->
-        <div id="athletes-list" class="athletes-list"></div>
-
-        <div class="panel-divider"></div>
-
-        <!-- Inserimento Passaggi Checkpoint per atleta selezionato -->
-        <div class="splits-editor">
-          <span class="eyebrow">TEMPI DI PASSAGGIO · <span id="splits-athlete-name">--</span></span>
-          <div id="splits-table" class="splits-table"></div>
-        </div>
-
-        <div class="panel-actions">
-          <button id="btn-reset-race" class="text-btn">Ripristina Dati Gara</button>
-        </div>
-      </aside>
-
-      <!-- TAB 3: IMPOSTAZIONI STILE & GRAFICA -->
-      <aside id="tab-settings" class="side-panel hud tab-content">
-        <div class="panel-header">
-          <span class="eyebrow">PERSONALIZZAZIONE</span>
-          <strong>Grafica & Aspetto</strong>
-        </div>
-
-        <div class="setting-group">
-          <label>Stile Mappa e Terreno</label>
-          <div class="style-options" id="terrain-style-selector">
-            <button data-val="satellite" class="choice-btn active">🛰️ Satellitare HD</button>
-            <button data-val="stylized" class="choice-btn">🎮 3D Stilizzato</button>
-            <button data-val="dark" class="choice-btn">🌑 Dark Minimal</button>
+        <div style="text-align:center;">
+          <div style="font:600 8px monospace; color:#dff654; margin-bottom:4px;">RIGHT</div>
+          <div id="drone-stick-right" style="width:60px; height:60px; border:1px solid #333; border-radius:50%; position:relative; background:rgba(20,30,30,0.8);">
+            <div id="drone-stick-right-dot" style="position:absolute; left:50%; top:50%; width:12px; height:12px; background:#dff654; border-radius:50%; transform:translate(-50%,-50%);"></div>
           </div>
         </div>
-
-        <div class="setting-group">
-          <label>Colore Principale Brand</label>
-          <div class="color-palette" id="color-palette">
-            <div class="color-dot active" data-color="#dff654" style="background:#dff654;" title="Giallo Giir"></div>
-            <div class="color-dot" data-color="#00f0ff" style="background:#00f0ff;" title="Ciano Skyrunning"></div>
-            <div class="color-dot" data-color="#ff9500" style="background:#ff9500;" title="Arancio Fuoco"></div>
-            <div class="color-dot" data-color="#ff3b30" style="background:#ff3b30;" title="Rosso Gara"></div>
-            <div class="color-dot" data-color="#34c759" style="background:#34c759;" title="Verde Neon"></div>
-          </div>
-        </div>
-
-        <div class="setting-group">
-          <label>Font Tipografico</label>
-          <select id="font-selector" class="custom-select">
-            <option value="Barlow Condensed">Barlow Condensed (Broadcast)</option>
-            <option value="DM Sans">DM Sans (Moderno)</option>
-            <option value="Montserrat">Montserrat (Geometrico)</option>
-            <option value="Oswald">Oswald (Bold Sport)</option>
-          </select>
-        </div>
-
-        <div class="setting-group">
-          <label>Esagerazione Rilievo 3D: <span id="exaggeration-val">1.25x</span></label>
-          <input id="exaggeration-slider" type="range" min="1.0" max="1.8" step="0.05" value="1.25" class="custom-slider" />
-        </div>
-
-        <div class="setting-group">
-          <label class="checkbox-label">
-            <input id="chk-profile" type="checkbox" checked />
-            Mostra Profilo Altimetrico in onda
-          </label>
-        </div>
-
-        <div class="panel-divider"></div>
-        <div class="panel-actions">
-          <button id="btn-save-settings" class="action-btn">Salva Impostazioni</button>
-        </div>
-      </aside>
+      </div>
 
       <!-- TRANS-04: indicator transizione sopra profilo -->
       <div id="transition-indicator" class="transition-indicator hud" style="display:none">Transizione in corso…</div>
