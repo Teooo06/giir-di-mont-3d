@@ -1265,24 +1265,27 @@ function frame() {
       const newDist = THREE.MathUtils.clamp(THREE.MathUtils.lerp(curDist, controllerZoomDist, 0.12 * sZoom), 40, 1200);
       camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
     }
-    // aggiorna HUD drone (ghiera + mini stick) se in droneMode
+    // aggiorna HUD drone: ghiera mostra angolo camera reale (pitch), stick mostrano input
     if (droneMode) {
       const gimbalPos = document.querySelector('#drone-gimbal-pos');
       if (gimbalPos) {
-        // tilt -1..1 -> top 10% to 90%
-        const t = THREE.MathUtils.clamp((droneVelTilt + 1) * 50, 10, 90);
+        // calcola pitch camera reale: angolo tra forward e orizzontale
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        const pitch = THREE.MathUtils.clamp(-forward.y, -1, 1); // -1 su, +1 giù
+        const t = THREE.MathUtils.clamp((pitch + 1) * 50, 8, 92);
         gimbalPos.style.top = `${100 - t}%`;
       }
       const leftDot = document.querySelector('#drone-stick-left-dot');
       if (leftDot) {
-        const x = THREE.MathUtils.clamp(droneVelYaw * 20, -20, 20);
-        const y = THREE.MathUtils.clamp(-droneVelThrottle * 20, -20, 20);
+        const x = THREE.MathUtils.clamp(droneYaw * 22, -22, 22);
+        const y = THREE.MathUtils.clamp(-droneThrottle * 22, -22, 22);
         leftDot.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
       }
       const rightDot = document.querySelector('#drone-stick-right-dot');
       if (rightDot) {
-        const x = THREE.MathUtils.clamp(droneVelRoll * 20, -20, 20);
-        const y = THREE.MathUtils.clamp(-droneVelPitch * 20, -20, 20);
+        const x = THREE.MathUtils.clamp(droneRoll * 22, -22, 22);
+        const y = THREE.MathUtils.clamp(-dronePitch * 22, -22, 22);
         rightDot.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
       }
     }
