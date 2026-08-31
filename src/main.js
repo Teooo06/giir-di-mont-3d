@@ -273,6 +273,75 @@ function generateAlpineForest() {
   scene.add(treesMesh);
 }
 
+// TER-3: landmarks — ponytail: Box+Cone not GLTF, ~1ms, no loader, per-km offset
+let landmarkGroup = null;
+function makeRifugio(pos) {
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(8, 4, 6), new THREE.MeshStandardMaterial({ color: '#5a4630', roughness: 0.85 }));
+  base.position.y = 2; base.castShadow = true; base.receiveShadow = true; g.add(base);
+  const roofGeo = new THREE.ConeGeometry(5.2, 3.5, 4); roofGeo.rotateY(Math.PI/4);
+  const roof = new THREE.Mesh(roofGeo, new THREE.MeshStandardMaterial({ color: '#7a3a2a', roughness: 0.8 }));
+  roof.position.y = 5.75; roof.castShadow = true; g.add(roof);
+  const chimney = new THREE.Mesh(new THREE.BoxGeometry(1, 2.2, 1), new THREE.MeshStandardMaterial({ color: '#333' }));
+  chimney.position.set(2.5, 5.2, -1.5); g.add(chimney);
+  g.position.copy(pos);
+  return g;
+}
+function makeCroce(pos, h = 6) {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, h, 6), new THREE.MeshStandardMaterial({ color: '#c9b99a', roughness: 0.9 }));
+  pole.position.y = h/2; pole.castShadow = true; g.add(pole);
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(3, 0.35, 0.35), new THREE.MeshStandardMaterial({ color: '#c9b99a' }));
+  bar.position.y = h - 1.1; g.add(bar);
+  g.position.copy(pos);
+  return g;
+}
+function makeBaita(pos, s = 1) {
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(4*s, 2.5*s, 3.5*s), new THREE.MeshStandardMaterial({ color: '#6b543e', roughness: 0.85 }));
+  base.position.y = 1.25*s; base.castShadow = true; base.receiveShadow = true; g.add(base);
+  const roofGeo = new THREE.ConeGeometry(2.8*s, 1.8*s, 4); roofGeo.rotateY(Math.PI/4);
+  const roof = new THREE.Mesh(roofGeo, new THREE.MeshStandardMaterial({ color: '#4a2e1e' }));
+  roof.position.y = 2.5*s + 0.9*s; g.add(roof);
+  g.position.copy(pos); g.scale.setScalar(s);
+  return g;
+}
+function generateLandmarks() {
+  if (landmarkGroup) { scene.remove(landmarkGroup); landmarkGroup.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
+  landmarkGroup = new THREE.Group(); scene.add(landmarkGroup);
+  if (!routeCurve || !cachedWorldPoints.length) return;
+  const placeOff = (ratio, dist=18) => {
+    const pt = routeCurve.getPointAt(THREE.MathUtils.clamp(ratio,0,0.999));
+    const tan = routeCurve.getTangentAt(ratio).normalize();
+    const perp = new THREE.Vector3(-tan.z,0,tan.x).normalize();
+    const side = (Math.random()>0.5?1:-1);
+    const off = pt.clone().add(perp.clone().multiplyScalar(side*dist));
+    off.y = terrainManager.getElevationAtWorld(off.x, off.z) + 0.3;
+    return off;
+  };
+  // 3 rifugi — Chiarino 4.8km, Vegessa 9km, Deleguaggio 27.5km
+  [[4.8,17],[9.0,-16],[27.5,19]].forEach(([km,off])=>{
+    const r = km/32.0; const p = placeOff(r, Math.abs(off));
+    // keep side consistent via sign of off
+    if(off<0) p.add(new THREE.Vector3(-6,0,6));
+    landmarkGroup.add(makeRifugio(p));
+  });
+  // 2 croci — Bocchetta Larec ~14.5km height boost + Pizzo Alto approximated 15.5km
+  [14.5, 15.5].forEach((km,i)=>{
+    const r= km/32.0; const p = placeOff(r, 22 + i*4);
+    p.y += 2.5; // raise on peak
+    landmarkGroup.add(makeCroce(p, 6 + i*0.5));
+  });
+  // 7 baite sparse 5-10% offset variation
+  for(let i=0;i<7;i++){
+    const r = 0.08 + Math.random()*0.75; const p = placeOff(r, 28 + Math.random()*25);
+    // only below 1800m for plausibility
+    const ele = (p.y/(0.1*settingsManager.settings.verticalExaggeration))+terrainManager.baseElevation;
+    if(ele>1750) { i--; continue; }
+    landmarkGroup.add(makeBaita(p, 0.8+Math.random()*0.4));
+  }
+}
+
 // ----------------------------------------------------
 // 4. TRACCIATO GPX & CHECKPOINT ACCURATI
 // ----------------------------------------------------
@@ -672,6 +741,8 @@ function rebuildTrack3D() {
   // YOU-16: recompute bbox for mini-map
   miniMapBbox = null;
   if (cachedWorldPoints.length) computeMiniMapBbox();
+  // TER-3: regenerate landmarks after track ready — ponytail: Box+Cone only, <1ms
+  generateLandmarks();
 }
 
 // PROG-02: rainbow neon track — single full tube + vertex colors, no seam (Closes #146)
