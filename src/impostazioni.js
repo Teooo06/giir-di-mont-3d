@@ -419,6 +419,15 @@ function initSettingsUI() {
       syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
     });
   }
+  // YOU-16: Mini-map toggle
+  const chkMini = document.querySelector('#chk-mini-map');
+  if (chkMini) {
+    chkMini.checked = s.showMiniMap !== false;
+    chkMini.addEventListener('change', (e) => {
+      settingsManager.update({ showMiniMap: e.target.checked });
+      syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+    });
+  }
 
   // PROG-07: Percorso & Marker
   const chkProgress = document.querySelector('#chk-progress-marker');
