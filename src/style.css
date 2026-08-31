@@ -863,3 +863,19 @@ body.clean .clean-notice { display: block; }
   .side-panel { width: calc(100% - 48px); }
   .operator { width: calc(100% - 48px); }
 }
+/* YOU-30: 1440p/4K readability scaling — ponytail: 2 queries, no JS, keeps HUD legible at distance */
+@media (min-width: 2560px) {
+  .side-panel { width: 380px; }
+  .operator { width: 380px; }
+  .elevation-hud { width: 620px; }
+  .mini-map-wrap { width: 280px; height: 280px; }
+  .ndi-bar { font-size: 1.05em; }
+}
+@media (min-width: 3840px) {
+  .side-panel { width: 440px; }
+  .operator { width: 440px; }
+  .elevation-hud { width: 760px; }
+  .mini-map-wrap { width: 340px; height: 340px; }
+  .ndi-bar { font-size: 1.15em; padding: 8px 16px; }
+  .top-bar .btn-topbar { font-size: 14px; padding: 10px 16px; }
+}
