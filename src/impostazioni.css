@@ -11,7 +11,14 @@
   --border-color: rgba(255, 255, 255, 0.12);
   --font-family: 'DM Sans', sans-serif;
   --font-heading: 'Barlow Condensed', sans-serif;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
 }
+
+/* Hallmark a11y focus */
+:focus-visible { outline: 2px solid var(--accent-neon); outline-offset: 2px; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -74,7 +81,7 @@ body {
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--radius-xl, 10px);
   padding: 24px;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
 }
@@ -289,10 +296,13 @@ input[type="color"] {
   gap: 8px;
 }
 .preset-btn {
-  width: 32px;
-  height: 32px;
+  /* Hallmark touch target 44px — ponytail: 32px visual + transparent hit padding */
+  width: 44px;
+  height: 44px;
+  border: 6px solid transparent;
+  background-clip: content-box;
+  box-sizing: border-box;
   border-radius: 50%;
-  border: 2px solid transparent;
   cursor: pointer;
   transition: transform 0.15s;
 }
@@ -347,7 +357,10 @@ input[type="color"] {
   color: #fff;
   border: 1px solid var(--border-color);
   padding: 8px 14px;
-  border-radius: 5px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-md, 5px);
   font: 700 12px var(--font-heading);
   letter-spacing: .06em;
   text-transform: uppercase;
