@@ -23,9 +23,15 @@ export class SettingsManager {
       showProgressMarker: true, // PROG-07: visible progress cursor on track
       trackTravelColor: '#ffffff', // PROG-07: traveled track color
        trackRemainingColor: '#2a2e34', // PROG-07: remaining track color
-       trackStyle: 'rainbow', // 'rainbow' | 'solid'
-       pathSmoothing: true, // Chaikin corner-cutting smoothing for track path
-       gpxSource: '/data/giir-di-mont-32-km.gpx'
+        trackStyle: 'rainbow', // 'rainbow' | 'solid'
+        pathSmoothing: true, // Chaikin corner-cutting smoothing for track path
+        gpxSource: '/data/giir-di-mont-32-km.gpx',
+        controllerThrottle: 0.4,
+        controllerYaw: 0.4,
+        controllerPitch: 0.4,
+        controllerRoll: 0.4,
+        controllerTilt: 0.4,
+        controllerZoom: 0.4
     };
 
     this.settings = { ...this.defaultSettings };

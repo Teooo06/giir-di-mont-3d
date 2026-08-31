@@ -467,34 +467,57 @@ function initSettingsUI() {
        syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
      });
    }
-   // GPX file upload
-  const gpxInput = document.querySelector('#gpx-input');
-  const gpxSource = document.querySelector('#gpx-source');
-  if (gpxSource) {
-    gpxSource.value = s.gpxSource || '/data/giir-di-mont-32-km.gpx';
-    gpxSource.addEventListener('change', (e) => {
-      settingsManager.update({ gpxSource: e.target.value });
-    });
-  }
-  if (gpxInput) {
-    gpxInput.addEventListener('change', async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      try {
-        const text = await file.text();
-        const xml = new DOMParser().parseFromString(text, 'application/xml');
-        if (xml.querySelector('parsererror')) { alert('GPX non valido'); return; }
-        const trkpts = [...xml.querySelectorAll('trkpt')];
-        if (trkpts.length < 2) { alert('Nessun punto trkpt nel GPX'); return; }
-        const points = trkpts.map(n => ({ lat: Number(n.getAttribute('lat')), lon: Number(n.getAttribute('lon')), ele: Number(n.querySelector('ele')?.textContent || 960) }));
-        if (points.some(p => !Number.isFinite(p.lat) || !Number.isFinite(p.lon))) { alert('Coordinate GPX non valide'); return; }
-        settingsManager.update({ gpxSource: file.name });
-        syncChannel.postMessage({ type: 'GPX_UPDATED', points });
-        alert(`GPX caricato: ${points.length} punti`);
-      } catch (err) { alert(`Errore GPX: ${err.message}`); }
-      e.target.value = '';
-    });
-  }
+    // GPX file upload
+   const gpxInput = document.querySelector('#gpx-input');
+   const gpxSource = document.querySelector('#gpx-source');
+   if (gpxSource) {
+     gpxSource.value = s.gpxSource || '/data/giir-di-mont-32-km.gpx';
+     gpxSource.addEventListener('change', (e) => {
+       settingsManager.update({ gpxSource: e.target.value });
+     });
+   }
+   if (gpxInput) {
+     gpxInput.addEventListener('change', async (e) => {
+       const file = e.target.files?.[0];
+       if (!file) return;
+       try {
+         const text = await file.text();
+         const xml = new DOMParser().parseFromString(text, 'application/xml');
+         if (xml.querySelector('parsererror')) { alert('GPX non valido'); return; }
+         const trkpts = [...xml.querySelectorAll('trkpt')];
+         if (trkpts.length < 2) { alert('Nessun punto trkpt nel GPX'); return; }
+         const points = trkpts.map(n => ({ lat: Number(n.getAttribute('lat')), lon: Number(n.getAttribute('lon')), ele: Number(n.querySelector('ele')?.textContent || 960) }));
+         if (points.some(p => !Number.isFinite(p.lat) || !Number.isFinite(p.lon))) { alert('Coordinate GPX non valide'); return; }
+         settingsManager.update({ gpxSource: file.name });
+         syncChannel.postMessage({ type: 'GPX_UPDATED', points });
+         alert(`GPX caricato: ${points.length} punti`);
+       } catch (err) { alert(`Errore GPX: ${err.message}`); }
+       e.target.value = '';
+     });
+   }
+   // Controller sensibilità 0.1-1.0
+   const ctrlMap = [
+     ['ctrl-throttle', 'controllerThrottle', 'ctrl-throttle-val'],
+     ['ctrl-yaw', 'controllerYaw', 'ctrl-yaw-val'],
+     ['ctrl-pitch', 'controllerPitch', 'ctrl-pitch-val'],
+     ['ctrl-roll', 'controllerRoll', 'ctrl-roll-val'],
+     ['ctrl-tilt', 'controllerTilt', 'ctrl-tilt-val'],
+     ['ctrl-zoom', 'controllerZoom', 'ctrl-zoom-val'],
+   ];
+   ctrlMap.forEach(([id, key, labelId]) => {
+     const el = document.querySelector(`#${id}`);
+     const label = document.querySelector(`#${labelId}`);
+     if (el) {
+       el.value = s[key] ?? 0.4;
+       if (label) label.textContent = `${parseFloat(el.value).toFixed(1)}×`;
+       el.addEventListener('input', () => {
+         const v = parseFloat(el.value);
+         if (label) label.textContent = `${v.toFixed(1)}×`;
+         settingsManager.update({ [key]: v });
+         syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+       });
+     }
+   });
 }
 
 function renderVersionList() {

@@ -383,6 +383,44 @@
           </div>
         </section>
 
+        <!-- Controller DJI / Virtuale -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <span class="badge">CONTROLLER</span>
+              <h2>Controller Drone — Sensibilità</h2>
+              <p class="subtitle">Regola la velocità per ogni asse del controller (telefono + DJI RC-N1). 0.1× lento, 1.0× veloce.</p>
+            </div>
+          </div>
+          <div class="settings-form" id="controller-settings">
+            <div class="form-group">
+              <label>Throttle — su/giù (alza/abbassa) <span id="ctrl-throttle-val">0.4×</span></label>
+              <input type="range" id="ctrl-throttle" min="0.1" max="1.0" step="0.1" value="0.4" class="form-slider" />
+            </div>
+            <div class="form-group">
+              <label>Yaw — sx/dx (ruota) <span id="ctrl-yaw-val">0.4×</span></label>
+              <input type="range" id="ctrl-yaw" min="0.1" max="1.0" step="0.1" value="0.4" class="form-slider" />
+            </div>
+            <div class="form-group">
+              <label>Pitch — avanti/indietro <span id="ctrl-pitch-val">0.4×</span></label>
+              <input type="range" id="ctrl-pitch" min="0.1" max="1.0" step="0.1" value="0.4" class="form-slider" />
+            </div>
+            <div class="form-group">
+              <label>Roll — strafe laterale <span id="ctrl-roll-val">0.4×</span></label>
+              <input type="range" id="ctrl-roll" min="0.1" max="1.0" step="0.1" value="0.4" class="form-slider" />
+            </div>
+            <div class="form-group">
+              <label>Tilt — ghiera (inclinazione) <span id="ctrl-tilt-val">0.4×</span></label>
+              <input type="range" id="ctrl-tilt" min="0.1" max="1.0" step="0.1" value="0.4" class="form-slider" />
+            </div>
+            <div class="form-group">
+              <label>Zoom — slider / dial <span id="ctrl-zoom-val">0.4×</span></label>
+              <input type="range" id="ctrl-zoom" min="0.1" max="1.0" step="0.1" value="0.4" class="form-slider" />
+            </div>
+            <small class="help-text">Valori salvati in <code>localStorage</code> e usati sia da telefono che da DJI. Prova in <a href="/controller.html" target="_blank">/controller</a> con telefono in orizzontale.</small>
+          </div>
+        </section>
+
         <!-- UI-06: Legenda Scorciatoie -->
         <section class="card">
           <div class="card-header">
