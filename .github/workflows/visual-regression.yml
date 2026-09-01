@@ -1,0 +1,43 @@
+name: visual-regression
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'index.html'
+      - 'impostazioni.html'
+      - 'public/**'
+      - 'tests/visual.spec.js'
+      - 'playwright.config.js'
+  push:
+    branches: [master]
+    paths:
+      - 'src/**'
+      - 'index.html'
+      - 'impostazioni.html'
+      - 'public/**'
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run visual tests
+        run: npx playwright test
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+            tests/visual.spec.js-snapshots/
+          retention-days: 7

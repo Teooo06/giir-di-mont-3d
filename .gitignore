@@ -7,3 +7,7 @@ Screenshot*.png
 screenshot*.png
 test_screen*.png
 *.log
+# keep visual baselines, ignore ephemeral playwright artifacts
+playwright-report/
+test-results/
+playwright/.cache/

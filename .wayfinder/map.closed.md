@@ -1,5 +1,5 @@
 # Wayfinder Map — Giir di Mont 3D Broadcast
-**Branch:** `claim/14-atm2-dynamic-weather` → `master` | **Last sync:** 2026-09-01 — ATM-2 weather presets done
+**Branch:** `claim/56-visual-regression` → `master` | **Last sync:** 2026-09-01 — YOU-33 visual regression 10 states done
 
 ---
 
@@ -16,6 +16,7 @@
 | **Checkpoint Labels in NDI** | ✅ Done (07d54f0) | THREE.Sprite + CanvasTexture on layer 1 |
 | **Camera Presets (5 scenes)** | ✅ Done | Keyboard 1-5, orbit controls |
 | **Elevation Profile** | ✅ Done | SVG, synced to athlete position |
+| **Visual Regression (YOU-33)** | ✅ Done (claim/56) | Playwright 10 states, CI, <60s, committed baselines |
 
 ---
 
@@ -31,6 +32,7 @@
 | **GFX-2** | Mini-map 2D PIP with athlete dots | SPEC#107, TODO#4 | Med | Canvas 2D or Three.js ortho |
 | **ATM-1** | Volumetric fog / clouds / God Rays | SPEC#103, TODO#3 | High | Post-processing / custom shaders |
 | **ATM-2** | Dynamic weather (time-of-day, cloud cover) | SPEC#103 | Med | ✅ Done (claim/14) — 4 presets + 5s lerp |
+| **YOU-33** | Visual regression test suite (10 states) | Phase 7 QA | Low | ✅ Done (claim/56) — Playwright + pixelmatch, CI, <60s |
 | **HW-1** | Stream Deck / MIDI / Gamepad input | SPEC#109, TODO#5 | Med | WebHID / WebMIDI API |
 | **DATA-1** | CSV import / live timing webhook | SPEC#111, TODO#6 | Low | Backend endpoint or local parse |
 | **TER-1** | Fix GPX sinking into terrain | TODO#3 | Med | Raycast elevation per vertex |
@@ -160,7 +162,7 @@
 | **YOU-30** | Run `responsiveness-check` at 3 breakpoints | No layout break, HUD readable |
 | **YOU-31** | Generate color palette from `#dff654` | `color-palette` → Tailwind config |
 | **YOU-32** | Create icon set for UI | `icon-set-generator` → 20+ SVG icons |
-| **YOU-33** | Visual regression test suite | `frontend-testing-debugging` — 10 key states |
+| **YOU-33** | Visual regression test suite | `frontend-testing-debugging` — 10 key states | ✅ Done (claim/56) — 10 screenshots, Playwright, CI |
 
 ---
 
