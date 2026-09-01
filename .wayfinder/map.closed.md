@@ -1,5 +1,5 @@
-# Wayfinder Map — Giir di Mont 3D Broadcast
-**Branch:** `claim/56-visual-regression` → `master` | **Last sync:** 2026-09-01 — YOU-33 visual regression 10 states done
+# Wayfinder Map — Giir di Mont 3D Broadcast — ✅ CLOSED
+**Status:** `master` — **Closed:** 2026-09-01 — ALL 33+40 tickets done — ATM-1 (#13) via YOU-19 (#42) + YOU-20 (#43) + ATM-2 (#14), YOU-33 (#56) done, map #57 closed | **Last branch:** `claim/56-visual-regression` → `master`
 
 ---
 
@@ -22,6 +22,8 @@
 
 ## 📋 Missing / Incomplete from TODO & SPECIFICHE
 
+> ✅ CLOSED 2026-09-01 — historical YOU rows superseded by 40 tickets #58-#97 + YOU PRs #182-#190 (all closed). ATM-1 #13 was last open, now closed via YOU-19 (#42→#187) + YOU-20 (#43→#188) + ATM-2 (#14→#189).
+
 | ID | Item | Source | Effort | Blocker |
 |----|------|--------|--------|---------|
 | **NDI-1** | NDI 50 FPS sustained | TODO#6, SPEC#99 | High | Double render + readPixels bottleneck |
@@ -30,8 +32,8 @@
 | **CAM-2** | Auto-follow smoothing (dead-zone, look-ahead) | main.js:747 | Low | — |
 | **GFX-1** | Broadcast lower-thirds (flag, photo, gap, pace) | SPEC#105, TODO#2 | High | New overlay system needed |
 | **GFX-2** | Mini-map 2D PIP with athlete dots | SPEC#107, TODO#4 | Med | Canvas 2D or Three.js ortho |
-| **ATM-1** | Volumetric fog / clouds / God Rays | SPEC#103, TODO#3 | High | Post-processing / custom shaders |
-| **ATM-2** | Dynamic weather (time-of-day, cloud cover) | SPEC#103 | Med | ✅ Done (claim/14) — 4 presets + 5s lerp |
+| **ATM-1** | Volumetric fog / clouds / God Rays | SPEC#103, TODO#3 | High | ✅ Done — YOU-19 FogExp2 #9dbecd 0.00068 #187 + YOU-20 god rays #188 (fog-gated, topdown hidden) |
+| **ATM-2** | Dynamic weather (time-of-day, cloud cover) | SPEC#103 | Med | ✅ Done (claim/14) — 4 presets + 5s lerp #189 |
 | **YOU-33** | Visual regression test suite (10 states) | Phase 7 QA | Low | ✅ Done (claim/56) — Playwright + pixelmatch, CI, <60s |
 | **HW-1** | Stream Deck / MIDI / Gamepad input | SPEC#109, TODO#5 | Med | WebHID / WebMIDI API |
 | **DATA-1** | CSV import / live timing webhook | SPEC#111, TODO#6 | Low | Backend endpoint or local parse |
