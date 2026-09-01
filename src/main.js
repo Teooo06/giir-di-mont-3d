@@ -17,14 +17,71 @@ const scene = new THREE.Scene();
 // Sfondo cielo alpino pulito e naturale (senza tinte gialle)
 scene.background = new THREE.Color('#94b5c7');
 // YOU-19: valley mist — ponytail: FogExp2 stdlib <0.3ms, toggleable via settings, topdown cleared; altitude shader deferred until director validates need
+// ATM-2: weather presets — ponytail: 4 presets + 5s lerp tween, no custom shader, uses stdlib Color.lerp
 const FOG_COLOR = '#9dbecd';
 const FOG_DEFAULT_DENSITY = 0.00068;
-function applyFog(enabled, density) {
+let FOG_CURRENT_COLOR = FOG_COLOR; // ATM-2: mutable fog color per preset
+function applyFog(enabled, density, color) {
   if (!enabled) { scene.fog = null; return; }
-  if (!scene.fog || !(scene.fog instanceof THREE.FogExp2)) scene.fog = new THREE.FogExp2(FOG_COLOR, density);
-  else { scene.fog.color.set(FOG_COLOR); scene.fog.density = density; }
+  const c = color || FOG_CURRENT_COLOR;
+  if (!scene.fog || !(scene.fog instanceof THREE.FogExp2)) scene.fog = new THREE.FogExp2(c, density);
+  else { scene.fog.color.set(c); scene.fog.density = density; }
+  FOG_CURRENT_COLOR = c;
 }
-applyFog(settingsManager.settings.fogEnabled !== false, settingsManager.settings.fogDensity ?? FOG_DEFAULT_DENSITY);
+// ATM-2: 4 weather presets — ponytail: plain objects, no class, calibration knobs
+const WEATHER_PRESETS = {
+  'mattina-limpida':    { sky: '#94b5c7', fog: '#9dbecd', fogDensity: 0.00068, sunColor: '#ffffff', sunIntensity: 3.2, sunPos: [-560,920,460], hemiSky: '#f2f8ff', hemiGround: '#2d3b32', hemiIntensity: 2.2, godRays: true },
+  'pomeriggio-nuvoloso':{ sky: '#a8c0d1', fog: '#b8c8d4', fogDensity: 0.00095, sunColor: '#fff3e0', sunIntensity: 1.9, sunPos: [-280,650,380], hemiSky: '#d8e6f0', hemiGround: '#3a4a3e', hemiIntensity: 1.6, godRays: false },
+  'tramonto-dorato':    { sky: '#e8a87c', fog: '#d4a484', fogDensity: 0.00085, sunColor: '#ff8c42', sunIntensity: 2.8, sunPos: [-750,380,220], hemiSky: '#ffd8a0', hemiGround: '#4a2b1a', hemiIntensity: 1.9, godRays: true },
+  'notte':              { sky: '#0a0f1e', fog: '#1a2a3a', fogDensity: 0.0011, sunColor: '#c0d4ff', sunIntensity: 0.35, sunPos: [400,350,-200], hemiSky: '#1a2238', hemiGround: '#0a0f1e', hemiIntensity: 0.55, godRays: false },
+};
+let _weatherTween = null; // {elapsed,duration,start,end}
+let _lastWeatherPreset = null;
+function getWeatherConfig(name) { return WEATHER_PRESETS[name] || WEATHER_PRESETS['mattina-limpida']; }
+function applyWeatherInstant(name) {
+  const cfg = getWeatherConfig(name);
+  scene.background = new THREE.Color(cfg.sky);
+  scene.background.colorSpace = THREE.SRGBColorSpace;
+  FOG_CURRENT_COLOR = cfg.fog;
+  const fogEnabled = settingsManager.settings.fogEnabled !== false;
+  applyFog(fogEnabled, cfg.fogDensity, cfg.fog);
+  sun.color.set(cfg.sunColor); sun.intensity = cfg.sunIntensity; sun.position.set(...cfg.sunPos);
+  hemiLight.color.set(cfg.hemiSky); hemiLight.groundColor.set(cfg.hemiGround); hemiLight.intensity = cfg.hemiIntensity;
+  if (godRaysGroup) godRaysGroup.visible = cfg.godRays && settingsManager.settings.godRaysEnabled !== false;
+  _lastWeatherPreset = name;
+}
+function setWeatherPreset(name, opts = {}) {
+  const { instant = false } = opts;
+  const cfg = getWeatherConfig(name);
+  if (instant) { applyWeatherInstant(name); return; }
+  // capture start values for 5s lerp — ponytail: snapshot scene, not settings
+  const start = {
+    sky: scene.background.clone(),
+    fogColor: scene.fog ? scene.fog.color.clone() : new THREE.Color(FOG_CURRENT_COLOR),
+    fogDensity: scene.fog ? scene.fog.density : cfg.fogDensity,
+    sunColor: sun.color.clone(),
+    sunIntensity: sun.intensity,
+    sunPos: sun.position.clone(),
+    hemiSky: hemiLight.color.clone(),
+    hemiGround: hemiLight.groundColor.clone(),
+    hemiIntensity: hemiLight.intensity,
+  };
+  const end = {
+    sky: new THREE.Color(cfg.sky),
+    fogColor: new THREE.Color(cfg.fog),
+    fogDensity: cfg.fogDensity,
+    sunColor: new THREE.Color(cfg.sunColor),
+    sunIntensity: cfg.sunIntensity,
+    sunPos: new THREE.Vector3(...cfg.sunPos),
+    hemiSky: new THREE.Color(cfg.hemiSky),
+    hemiGround: new THREE.Color(cfg.hemiGround),
+    hemiIntensity: cfg.hemiIntensity,
+    godRays: cfg.godRays,
+    name,
+  };
+  _weatherTween = { elapsed: 0, duration: 5.0, start, end };
+  _lastWeatherPreset = name;
+}
 
 // Telecamera Operatore (Viewport)
 const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 2, 9000);
@@ -161,16 +218,31 @@ const settingsManager = new SettingsManager({
     if (settings.ndiFps && ndiStreamer && settings.ndiFps !== ndiStreamer.targetFps) {
       ndiStreamer.setFps(settings.ndiFps);
     }
-    // YOU-19: fog toggle/density — ponytail: immediate apply, no shader rebuild
-    if (settings.fogEnabled !== undefined || settings.fogDensity !== undefined) {
-      applyFog(settings.fogEnabled !== false, settings.fogDensity ?? FOG_DEFAULT_DENSITY);
+    // ATM-2: weather preset — ponytail: 5s lerp tween, instant only on first load / BroadcastChannel without tween
+    if (settings.weatherPreset !== undefined && settings.weatherPreset !== _lastWeatherPreset) {
+      // if coming from impostazioni UI, trigger smooth tween; if from programmatic instant (load), _lastWeatherPreset already set
+      const isInitial = _lastWeatherPreset === null;
+      if (isInitial) applyWeatherInstant(settings.weatherPreset);
+      else setWeatherPreset(settings.weatherPreset);
     }
-    // YOU-20: god rays toggle — ponytail: visibility only, no rebuild
-    if (settings.godRaysEnabled !== undefined) {
-      if (godRaysGroup) godRaysGroup.visible = settings.godRaysEnabled !== false;
+    // YOU-19: fog toggle/density — ponytail: immediate apply only when not tweening weather (tween owns fog then)
+    if (!_weatherTween && (settings.fogEnabled !== undefined || settings.fogDensity !== undefined)) {
+      const col = WEATHER_PRESETS[settings.weatherPreset || 'mattina-limpida']?.fog || FOG_COLOR;
+      // allow manual fogColor override via FOG_CURRENT_COLOR if not tweening
+      applyFog(settings.fogEnabled !== false, settings.fogDensity ?? getWeatherConfig(settings.weatherPreset).fogDensity, col);
+    }
+    // YOU-20: god rays toggle — ponytail: visibility only, no rebuild; weather preset also gates
+    if (!_weatherTween && settings.godRaysEnabled !== undefined) {
+      if (godRaysGroup) {
+        const cfg = getWeatherConfig(settings.weatherPreset);
+        const weatherAllows = cfg.godRays;
+        godRaysGroup.visible = (settings.godRaysEnabled !== false) && weatherAllows;
+      }
     }
   }
 });
+// ATM-2: initial weather apply — ponytail: instant, no tween on load
+applyWeatherInstant(settingsManager.settings.weatherPreset || 'mattina-limpida');
 
 const terrainManager = new TerrainManager({
   scene,
@@ -219,14 +291,30 @@ let syncChannel = null;
     syncChannel = new BroadcastChannel('giir_sync_channel');
     syncChannel.onmessage = (e) => {
       if (e.data?.type === 'SETTINGS_UPDATED') {
+        const prevWeather = settingsManager.settings.weatherPreset;
         settingsManager.loadSettings();
         // YOU-16: sync mini-map visibility without reload
         miniMapVisible = settingsManager.settings.showMiniMap !== false;
         updateMiniMapVisibility();
-        // YOU-19: fog sync — ponytail: apply immediately after reload
-        applyFog(settingsManager.settings.fogEnabled !== false, settingsManager.settings.fogDensity ?? FOG_DEFAULT_DENSITY);
-        // YOU-20: god rays sync
-        if (godRaysGroup) godRaysGroup.visible = settingsManager.settings.godRaysEnabled !== false;
+        // ATM-2: weather preset sync — 5s lerp if changed via /impostazioni
+        if (settingsManager.settings.weatherPreset !== prevWeather) {
+          if (settingsManager.settings.weatherPreset !== _lastWeatherPreset) setWeatherPreset(settingsManager.settings.weatherPreset);
+          // fog/god rays will be driven by weather tween + settings; also sync slider values below
+          if (!_weatherTween) {
+            const cfg = getWeatherConfig(settingsManager.settings.weatherPreset);
+            applyFog(settingsManager.settings.fogEnabled !== false, settingsManager.settings.fogDensity ?? cfg.fogDensity, cfg.fog);
+            if (godRaysGroup) godRaysGroup.visible = (settingsManager.settings.godRaysEnabled !== false) && cfg.godRays;
+          }
+        } else if (!_weatherTween) {
+          // YOU-19: fog sync — ponytail: apply immediately after reload (only when not tweening)
+          const cfg = getWeatherConfig(settingsManager.settings.weatherPreset);
+          applyFog(settingsManager.settings.fogEnabled !== false, settingsManager.settings.fogDensity ?? cfg.fogDensity, cfg.fog);
+          // YOU-20: god rays sync
+          if (godRaysGroup) {
+            const weatherAllows = cfg.godRays;
+            godRaysGroup.visible = (settingsManager.settings.godRaysEnabled !== false) && weatherAllows;
+          }
+        }
       } else if (e.data?.type === 'RACE_STATE_UPDATED') {
         raceManager.loadFromStorage(false);
       } else if (e.data?.type === 'GPX_UPDATED') {
@@ -1577,35 +1665,67 @@ function frame() {
         const speed = settingsManager.settings.simulationSpeed ?? 1;
         simElapsedSec = (simElapsedSec + dt * speed) % getDurationSec();
       }
-      // YOU-19 FOG: topdown clears, else density = settings.fogDensity with subtle 6% sine shimmer — ponytail: native FogExp2, no shader, <0.2ms
-      const fogEnabled = settingsManager.settings.fogEnabled !== false;
-      if (!fogEnabled) {
-        if (scene.fog) { scene.fog = null; }
-      } else {
-        const base = settingsManager.settings.fogDensity ?? FOG_DEFAULT_DENSITY;
-        if (!scene.fog || !(scene.fog instanceof THREE.FogExp2)) applyFog(true, base);
-        if (activeScene === 'topdown') {
-          scene.fog.density = 0;
-        } else {
-          // subtle animation: ±6% at 0.08 rad/s (~78s cycle) — cheap, no texture
-          const shimmer = 1 + Math.sin(performance.now() * 0.00008) * 0.06;
-          scene.fog.density = base * shimmer;
+      // ATM-2: weather 5s lerp — ponytail: one tween for sky/fog/sun/hemi, <0.5ms, no shader
+      if (_weatherTween) {
+        _weatherTween.elapsed += dt;
+        let t = Math.min(1, _weatherTween.elapsed / _weatherTween.duration);
+        const e = easeInOutCubic(t);
+        const s = _weatherTween.start, en = _weatherTween.end;
+        scene.background.copy(s.sky).lerp(en.sky, e);
+        const fogEnabledTween = settingsManager.settings.fogEnabled !== false;
+        if (fogEnabledTween) {
+          if (!scene.fog || !(scene.fog instanceof THREE.FogExp2)) applyFog(true, s.fogDensity, '#'+s.fogColor.getHexString());
+          scene.fog.color.copy(s.fogColor).lerp(en.fogColor, e);
+          scene.fog.density = THREE.MathUtils.lerp(s.fogDensity, en.fogDensity, e);
+          if (activeScene === 'topdown') scene.fog.density = 0;
+        } else if (scene.fog) { scene.fog = null; }
+        sun.color.copy(s.sunColor).lerp(en.sunColor, e);
+        sun.intensity = THREE.MathUtils.lerp(s.sunIntensity, en.sunIntensity, e);
+        sun.position.copy(s.sunPos).lerp(en.sunPos, e);
+        hemiLight.color.copy(s.hemiSky).lerp(en.hemiSky, e);
+        hemiLight.groundColor.copy(s.hemiGround).lerp(en.hemiGround, e);
+        hemiLight.intensity = THREE.MathUtils.lerp(s.hemiIntensity, en.hemiIntensity, e);
+        if (t >= 1) {
+          _weatherTween = null;
+          FOG_CURRENT_COLOR = '#'+en.fogColor.getHexString();
+          if (fogEnabledTween) applyFog(true, en.fogDensity, '#'+en.fogColor.getHexString());
+          if (godRaysGroup) {
+            const cfg = getWeatherConfig(en.name);
+            const godEnabled = settingsManager.settings.godRaysEnabled !== false;
+            godRaysGroup.visible = godEnabled && cfg.godRays && activeScene !== 'topdown';
+          }
         }
-      }
-      // YOU-20: god rays — ponytail: mesh shafts, fog-gated, topdown hidden, ±25% opacity shimmer, ~0.4ms
-      if (godRaysGroup) {
-        const godEnabled = settingsManager.settings.godRaysEnabled !== false;
-        const fogOn = settingsManager.settings.fogEnabled !== false;
-        const hide = !godEnabled || !fogOn || activeScene === 'topdown';
-        godRaysGroup.visible = !hide;
-        if (!hide) {
-          const shimmerGod = 1 + Math.sin(performance.now() * 0.0007) * 0.25;
-          // sun direction plausibility: scale opacity slightly by sun elevation (high sun = dimmer) — ponytail: elevation gate deferred, just scale
-          // sun elevation ~51°, dim factor 0.85 at high noon, 1.2 at low <30° — keep 1.0 for now
-          godRaysGroup.children.forEach((m, i) => {
-            const baseOp = [0.13, 0.11, 0.09, 0.13, 0.11, 0.09][i % 6] ?? 0.1;
-            if (m.material) m.material.opacity = baseOp * shimmerGod;
-          });
+      } else {
+        // YOU-19 FOG: topdown clears, else density = settings.fogDensity with subtle 6% sine shimmer — ponytail: native FogExp2, no shader, <0.2ms
+        const fogEnabled = settingsManager.settings.fogEnabled !== false;
+        if (!fogEnabled) {
+          if (scene.fog) { scene.fog = null; }
+        } else {
+          const base = settingsManager.settings.fogDensity ?? FOG_DEFAULT_DENSITY;
+          if (!scene.fog || !(scene.fog instanceof THREE.FogExp2)) applyFog(true, base, FOG_CURRENT_COLOR);
+          if (activeScene === 'topdown') {
+            scene.fog.density = 0;
+          } else {
+            // subtle animation: ±6% at 0.08 rad/s (~78s cycle) — cheap, no texture
+            const shimmer = 1 + Math.sin(performance.now() * 0.00008) * 0.06;
+            scene.fog.density = base * shimmer;
+          }
+        }
+        // YOU-20: god rays — ponytail: mesh shafts, fog-gated, topdown hidden, ±25% opacity shimmer, ~0.4ms
+        if (godRaysGroup) {
+          const cfgWeather = getWeatherConfig(settingsManager.settings.weatherPreset);
+          const godEnabled = settingsManager.settings.godRaysEnabled !== false;
+          const fogOn = settingsManager.settings.fogEnabled !== false;
+          const weatherAllows = cfgWeather.godRays;
+          const hide = !godEnabled || !fogOn || !weatherAllows || activeScene === 'topdown';
+          godRaysGroup.visible = !hide;
+          if (!hide) {
+            const shimmerGod = 1 + Math.sin(performance.now() * 0.0007) * 0.25;
+            godRaysGroup.children.forEach((m, i) => {
+              const baseOp = [0.13, 0.11, 0.09, 0.13, 0.11, 0.09][i % 6] ?? 0.1;
+              if (m.material) m.material.opacity = baseOp * shimmerGod;
+            });
+          }
         }
       }
       const state = raceManager.getState();

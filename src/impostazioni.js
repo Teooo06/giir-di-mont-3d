@@ -444,6 +444,35 @@ function initSettingsUI() {
     });
   }
 
+  // ATM-2: weather preset — ponytail: 4 radios, one key, BroadcastChannel, 5s lerp in main.js
+  const weatherRadios = document.querySelectorAll('input[name="weatherPreset"]');
+  if (weatherRadios.length) {
+    const initWeather = s.weatherPreset || 'mattina-limpida';
+    weatherRadios.forEach(r => { r.checked = r.value === initWeather; });
+    weatherRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (!radio.checked) return;
+        const name = radio.value;
+        // also set fog/godRays per preset so slider reflects target immediately
+        const presetFog = { 'mattina-limpida': 0.00068, 'pomeriggio-nuvoloso': 0.00095, 'tramonto-dorato': 0.00085, 'notte': 0.0011 };
+        const presetGod = { 'mattina-limpida': true, 'pomeriggio-nuvoloso': false, 'tramonto-dorato': true, 'notte': false };
+        const fogVal = presetFog[name];
+        const godVal = presetGod[name];
+        settingsManager.update({ weatherPreset: name, fogDensity: fogVal, godRaysEnabled: godVal });
+        // reflect fog slider immediately
+        const fogSl = document.querySelector('#fog-density');
+        const fogSlVal = document.querySelector('#fog-density-val');
+        const chkFogSl = document.querySelector('#chk-fog-enabled');
+        const chkGodSl = document.querySelector('#chk-god-rays');
+        if (fogSl) { fogSl.value = fogVal; fogSl.disabled = false; }
+        if (fogSlVal) fogSlVal.textContent = fogVal.toFixed(5);
+        if (chkFogSl) chkFogSl.checked = true;
+        if (chkGodSl) chkGodSl.checked = godVal;
+        syncChannel.postMessage({ type: 'SETTINGS_UPDATED', settings: settingsManager.settings });
+      });
+    });
+  }
+
   // Profilo Altimetrico
   const chkProf = document.querySelector('#chk-prof-overlay');
   if (chkProf) {
