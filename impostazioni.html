@@ -206,6 +206,42 @@
             </div>
             <small class="help-text" style="margin:-8px 0 12px; display:block; opacity:0.7;">Additive, 0.4ms, visibili con nebbia, nascosti in topdown, shimmer ±25%.</small>
 
+            <!-- ATM-2: preset meteo broadcast — ponytail: 4 radio cards, one-click, 5s lerp in main.js -->
+            <div class="form-group">
+              <label>Preset Meteo Broadcast — <small style="opacity:0.6">cambia sole/nebbia/cielo in 5s</small></label>
+              <div class="radio-cards" id="weather-preset-group">
+                <label class="radio-card">
+                  <input type="radio" name="weatherPreset" value="mattina-limpida" checked />
+                  <div class="card-content">
+                    <strong>☀️ Mattina limpida</strong>
+                    <small>Sole alto bianco, cielo #94b5c7, nebbia leggera 0.00068</small>
+                  </div>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="weatherPreset" value="pomeriggio-nuvoloso" />
+                  <div class="card-content">
+                    <strong>⛅ Pomeriggio nuvoloso</strong>
+                    <small>Sole diffuso basso, cielo grigio-azzurro, nebbia 0.00095, no God Rays</small>
+                  </div>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="weatherPreset" value="tramonto-dorato" />
+                  <div class="card-content">
+                    <strong>🌅 Tramonto dorato</strong>
+                    <small>Luci calde #ff8c42, ombre lunghe, nebbia ambrata, God Rays intensi</small>
+                  </div>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="weatherPreset" value="notte" />
+                  <div class="card-content">
+                    <strong>🌙 Notte</strong>
+                    <small>Luce lunare blu #c0d4ff 0.35, cielo #0a0f1e, nebbia densa 0.0011</small>
+                  </div>
+                </label>
+              </div>
+              <small class="help-text">Sincronizzato a / via BroadcastChannel · hemiLight / sun / fog / sky lerp 5s</small>
+            </div>
+
             <div class="form-group checkbox-group">
               <label>
                 <input type="checkbox" id="chk-prof-overlay" checked />

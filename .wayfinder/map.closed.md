@@ -1,5 +1,5 @@
 # Wayfinder Map — Giir di Mont 3D Broadcast
-**Branch:** `DevTeooo` → `master` | **Last sync:** 2026-08-27
+**Branch:** `claim/14-atm2-dynamic-weather` → `master` | **Last sync:** 2026-09-01 — ATM-2 weather presets done
 
 ---
 
@@ -30,7 +30,7 @@
 | **GFX-1** | Broadcast lower-thirds (flag, photo, gap, pace) | SPEC#105, TODO#2 | High | New overlay system needed |
 | **GFX-2** | Mini-map 2D PIP with athlete dots | SPEC#107, TODO#4 | Med | Canvas 2D or Three.js ortho |
 | **ATM-1** | Volumetric fog / clouds / God Rays | SPEC#103, TODO#3 | High | Post-processing / custom shaders |
-| **ATM-2** | Dynamic weather (time-of-day, cloud cover) | SPEC#103 | Med | — |
+| **ATM-2** | Dynamic weather (time-of-day, cloud cover) | SPEC#103 | Med | ✅ Done (claim/14) — 4 presets + 5s lerp |
 | **HW-1** | Stream Deck / MIDI / Gamepad input | SPEC#109, TODO#5 | Med | WebHID / WebMIDI API |
 | **DATA-1** | CSV import / live timing webhook | SPEC#111, TODO#6 | Low | Backend endpoint or local parse |
 | **TER-1** | Fix GPX sinking into terrain | TODO#3 | Med | Raycast elevation per vertex |
